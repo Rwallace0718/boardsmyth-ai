@@ -9,6 +9,7 @@ import type {
   WiringRow,
   Lesson,
   PartItem,
+  LocalAiSettings,
   GenerateResult,
   PhoneSession,
   StatusEvent,
@@ -101,6 +102,13 @@ export default function App() {
   });
   const [wiring, setWiring] = useState<WiringRow[]>([]);
   const [showProjects, setShowProjects] = useState(false);
+  const [localAi, setLocalAi] = useState<LocalAiSettings>({ enabled: false, url: 'http://localhost:11434', model: '' });
+  const [localPanel, setLocalPanel] = useState(false);
+  const [localModels, setLocalModels] = useState<string[]>([]);
+  const [localMsg, setLocalMsg] = useState('');
+  useEffect(() => {
+    void window.api.localAi.get().then(setLocalAi).catch(() => undefined);
+  }, []);
   const lastGoal = useRef('');
   const [selfCheck, setSelfCheck] = useState(() => {
     try {
@@ -410,6 +418,51 @@ export default function App() {
     return res;
   }
 
+  async function testLocal() {
+    setLocalMsg('Checking…');
+    const r = await window.api.localAi.test(localAi.url);
+    setLocalModels(r.models);
+    if (r.ok) {
+      setLocalMsg(`Found ${r.models.length} model${r.models.length === 1 ? '' : 's'}.`);
+      if (!localAi.model) setLocalAi((s) => ({ ...s, model: r.models[0] }));
+    } else setLocalMsg(r.error ?? 'Could not connect.');
+  }
+  async function saveLocal(next: LocalAiSettings) {
+    const r = await window.api.localAi.set(next);
+    if (r.ok) {
+      setLocalAi(next);
+      setLocalMsg(next.enabled ? 'Local AI is on. Generations now run on this computer.' : 'Local AI is off.');
+    } else setLocalMsg(r.error ?? 'Could not save.');
+  }
+
+  async function openWokwi() {
+    const base = fqbn.split(':').slice(0, 3).join(':');
+    const slug: Record<string, string> = {
+      'arduino:avr:uno': 'arduino-uno',
+      'arduino:avr:nano': 'arduino-nano',
+      'arduino:avr:mega': 'arduino-mega',
+      'esp32:esp32:esp32': 'esp32',
+      'esp32:esp32:esp32s3': 'esp32-s3',
+      'esp32:esp32:esp32c3': 'esp32-c3',
+      'rp2040:rp2040:rpipico': 'pi-pico',
+      'rp2040:rp2040:rpipicow': 'pi-pico-w',
+    };
+    try {
+      await navigator.clipboard.writeText(codeRef.current);
+    } catch {
+      /* the user can still copy from the editor */
+    }
+    window.open(slug[base] ? `https://wokwi.com/projects/new/${slug[base]}` : 'https://wokwi.com/', '_blank');
+    setChat((c) => [
+      ...c,
+      {
+        role: 'system',
+        text:
+          'Your code is copied. In Wokwi, click the code area, press Ctrl+A then Ctrl+V to paste it over the sample, then add the parts from the Wiring tab and press the green Play button. Wokwi is a separate free website.',
+      },
+    ]);
+  }
+
   const KEEP = 'Do NOT change the program: return the code exactly as it is, character for character. ';
   function analyzeProgram() {
     void generate({
@@ -610,9 +663,10 @@ export default function App() {
   const needsSub = auth.subscribed === false;
   const freeLimit = auth.freeLimit ?? 5;
   const freeLeft = Math.max(0, freeLimit - (auth.usageMonth ?? 0));
-  const outOfFree = needsSub && freeLeft === 0;
+  const localOn = localAi.enabled;
+  const outOfFree = needsSub && freeLeft === 0 && !localOn;
   const isByok = auth.subscribed === true && auth.plan === 'byok';
-  const needsKey = isByok && !auth.hasOwnKey;
+  const needsKey = isByok && !auth.hasOwnKey && !localOn;
 
   async function saveKey() {
     const r = await window.api.claudeKey.set(keyInput);
@@ -704,6 +758,12 @@ export default function App() {
           })}
         >
           Save
+        </button>
+        <button
+          title="Use a free AI that runs on this computer (Ollama) instead of the hosted AI"
+          onClick={() => setLocalPanel((v) => !v)}
+        >
+          Local AI: {localOn ? 'on' : 'off'}
         </button>
         <button
           title="Open a saved program (Ctrl+O)"
@@ -840,6 +900,32 @@ export default function App() {
         </div>
       )}
 
+      {localPanel && (
+        <div className="banner" style={{ flexWrap: 'wrap' }}>
+          <span style={{ flexBasis: '100%' }}>
+            <strong>Local AI (Ollama).</strong> Run a free AI model on this computer instead of the hosted one. Nothing leaves your computer and it is not counted against your plan, but small local
+            models write weaker code and need a good computer. Install Ollama from ollama.com, then run <code>ollama pull qwen2.5-coder:7b</code> in a terminal.
+          </span>
+          <input value={localAi.url} onChange={(e) => setLocalAi({ ...localAi, url: e.target.value })} style={{ minWidth: 220 }} />
+          <button onClick={testLocal}>Test connection</button>
+          {localModels.length > 0 ? (
+            <select value={localAi.model} onChange={(e) => setLocalAi({ ...localAi, model: e.target.value })}>
+              <option value="">Pick a model…</option>
+              {localModels.map((m) => (
+                <option key={m}>{m}</option>
+              ))}
+            </select>
+          ) : (
+            <input placeholder="model name" value={localAi.model} onChange={(e) => setLocalAi({ ...localAi, model: e.target.value })} />
+          )}
+          <button className="primary" onClick={() => void saveLocal({ ...localAi, enabled: !localAi.enabled })}>
+            {localAi.enabled ? 'Turn off' : 'Turn on'}
+          </button>
+          <button onClick={() => void saveLocal(localAi)}>Save</button>
+          {localMsg && <span className="small">{localMsg}</span>}
+        </div>
+      )}
+
       <main className="workspace">
         <aside
           className={`chat${dragOver ? ' dragover' : ''}`}
@@ -940,6 +1026,9 @@ export default function App() {
             <div className="chat-buttons">
               <button className="primary" onClick={() => void generate()} disabled={working || outOfFree || needsKey}>
                 {busy ? 'Working…' : preparing ? 'Preparing board…' : 'Generate'}
+              </button>
+              <button title="Copy this code and open the free Wokwi simulator to try it without hardware" onClick={() => void openWokwi()}>
+                Test in Wokwi
               </button>
               <button title="Pick a ready-made project to start from" onClick={() => setShowProjects(true)} disabled={working}>
                 Starter projects

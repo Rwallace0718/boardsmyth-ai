@@ -34,6 +34,13 @@ export interface DetectedPort {
   fqbn?: string;
 }
 
+export interface LocalAiSettings {
+  /** Use a local Ollama server instead of the hosted AI. */
+  enabled: boolean;
+  url: string;
+  model: string;
+}
+
 export interface LibraryInfo {
   name: string;
   version?: string;
@@ -193,6 +200,11 @@ export interface Api {
     /** Installs the board's core if needed and returns its option menus. */
     details(fqbn: string): Promise<BoardDetails>;
     detect(): Promise<DetectedPort[]>;
+  };
+  localAi: {
+    get(): Promise<LocalAiSettings>;
+    set(s: LocalAiSettings): Promise<{ ok: boolean; error?: string }>;
+    test(url: string): Promise<{ ok: boolean; models: string[]; error?: string }>;
   };
   libraries: {
     /** Searches the Arduino Library Manager. Empty query returns nothing. */

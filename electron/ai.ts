@@ -3,6 +3,7 @@ import { loadConfig } from './config';
 import { accessToken } from './auth';
 import { compile, ensureCore, ensureLibraries } from './arduino';
 import { getClaudeKey } from './keys';
+import { getLocalAi } from './localai';
 import { MODEL, SYSTEM_PROMPT, buildUserMessage, parseReply } from '../shared/sketchPrompt';
 
 const MAX_ATTEMPTS = 4;
@@ -106,7 +107,57 @@ async function callClaudeDirect(body: Record<string, unknown>): Promise<EdgeResp
   return parsed;
 }
 
+/** Local Ollama server: no account, no usage count, runs on the user's own computer. */
+async function callOllama(body: Record<string, unknown>): Promise<EdgeResponse> {
+  const cfg = getLocalAi();
+  const user = buildUserMessage({
+    boardName: String(body.boardName ?? ''),
+    fqbn: String(body.fqbn ?? ''),
+    prompt: String(body.prompt ?? ''),
+    currentCode: body.currentCode ? String(body.currentCode) : undefined,
+    compileErrors: body.compileErrors ? String(body.compileErrors) : undefined,
+    teach: body.teach === true,
+    boardFacts: body.boardFacts ? String(body.boardFacts) : undefined,
+  });
+  const images =
+    Array.isArray(body.images) && !body.compileErrors
+      ? (body.images as string[]).slice(0, 3).map((i) => i.replace(/^data:image\/[a-z]+;base64,/, ''))
+      : [];
+
+  const call = (withImages: boolean) =>
+    fetch(`${cfg.url}/api/chat`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        model: cfg.model,
+        stream: false,
+        options: { num_ctx: 16384, temperature: 0.2 },
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: user, ...(withImages && images.length ? { images } : {}) },
+        ],
+      }),
+      signal: AbortSignal.timeout(10 * 60 * 1000), // local models can be slow
+    });
+
+  try {
+    let res = await call(true);
+    if (!res.ok && images.length) res = await call(false); // this model may not accept pictures
+    if (!res.ok) {
+      const txt = (await res.text()).slice(0, 200);
+      return { error: `Your local AI returned an error (${res.status}). ${txt}` };
+    }
+    const j = (await res.json()) as { message?: { content?: string } };
+    const parsed = parseReply(j.message?.content ?? '');
+    if (!parsed.code) return { error: 'The local AI did not return a program in the expected format. A larger model usually fixes this.' };
+    return parsed;
+  } catch {
+    return { error: 'Could not reach your local AI. Check that Ollama is running (see Local AI settings).' };
+  }
+}
+
 async function callGenerator(body: Record<string, unknown>): Promise<EdgeResponse> {
+  if (getLocalAi().enabled) return callOllama(body);
   const first = await callEdge(body);
   // Subscribers on the bring-your-own-key plan are told by the server to use their own key.
   if (first.code_name === 'plan') return callClaudeDirect(body);

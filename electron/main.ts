@@ -4,12 +4,13 @@ import * as path from 'path';
 import { randomUUID } from 'crypto';
 import QRCode from 'qrcode';
 import { loadConfig } from './config';
-import type { Draft, FileResult, GenerateRequest, MenuAction, PhoneSession, StatusEvent, UpdateState } from '../shared/types';
+import type { Draft, FileResult, GenerateRequest, LocalAiSettings, MenuAction, PhoneSession, StatusEvent, UpdateState } from '../shared/types';
 import * as arduino from './arduino';
 import * as auth from './auth';
 import { generateAndVerify } from './ai';
 import { POPULAR_BOARDS } from './boards';
 import { clearClaudeKey, setClaudeKey } from './keys';
+import { getLocalAi, setLocalAi, testLocalAi } from './localai';
 
 let win: BrowserWindow | null = null;
 
@@ -267,6 +268,9 @@ function registerIpc(): void {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
   });
+  ipcMain.handle('localAi:get', () => getLocalAi());
+  ipcMain.handle('localAi:set', (_e, s: LocalAiSettings) => setLocalAi(s));
+  ipcMain.handle('localAi:test', (_e, url: string) => testLocalAi(String(url ?? '')));
   ipcMain.handle('lib:search', (_e, q: string) => arduino.searchLibraryInfo(String(q ?? '')).catch(() => []));
   ipcMain.handle('lib:installed', () => arduino.listInstalledLibraries().catch(() => []));
   ipcMain.handle('lib:install', (_e, name: string) => arduino.installLibrary(String(name ?? '')));
