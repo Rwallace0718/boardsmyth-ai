@@ -30,6 +30,16 @@ async function put(path, body, type) {
 }
 const publicUrl = (path) => `${base}/storage/v1/object/public/releases/${path}`;
 
+// GPL-3.0 section 6: the source code of the bundled Arduino CLI must be available from the same place as the installer.
+// Upload it BEFORE the installer so an installer is never published without its source.
+{
+  const cliVersion = process.env.ARDUINO_CLI_VERSION ?? '1.1.1';
+  const srcUrl = `https://github.com/arduino/arduino-cli/archive/refs/tags/v${cliVersion}.tar.gz`;
+  const r = await fetch(srcUrl);
+  if (!r.ok) throw new Error(`Could not download the Arduino CLI source (${srcUrl}): ${r.status}`);
+  await put(`source/arduino-cli-${cliVersion}-source.tar.gz`, Buffer.from(await r.arrayBuffer()), 'application/gzip');
+}
+
 let mainUrl = '';
 for (const f of wanted) {
   const data = readFileSync(join('release', f));

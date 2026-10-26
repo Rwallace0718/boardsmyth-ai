@@ -2,7 +2,7 @@
   "name": "boardsmyth",
   "productName": "BoardSmyth AI",
   "version": "0.2.3",
-  "description": "Describe what you want your Arduino to do. AI writes, compiles, fixes and uploads the program.",
+  "description": "Describe what you want your board to do. AI writes, compiles, fixes and uploads the program.",
   "author": "Code Crafted Nexus LLC",
   "private": true,
   "main": "dist-electron/electron/main.js",
