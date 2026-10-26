@@ -1,0 +1,93 @@
+# Builds BoardSmyth AI installers and uploads them to Supabase Storage (bucket "releases").
+# Run it from the GitHub "Actions" tab (Run workflow), or push a tag like v0.2.1.
+# One job builds Windows (signed with Azure Artifact Signing), one builds Mac (signed + notarized).
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      notes:
+        description: What is new in this version (shown in the app's update message)
+        required: false
+        default: ''
+      build_windows:
+        description: Build Windows
+        type: boolean
+        default: true
+      build_mac:
+        description: Build Mac
+        type: boolean
+        default: true
+  push:
+    tags: ['v*']
+
+jobs:
+  windows:
+    if: ${{ github.event_name == 'push' || inputs.build_windows }}
+    runs-on: windows-latest
+    env:
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Write app-config.json
+        shell: bash
+        run: |
+          cat > app-config.json <<JSON
+          {"supabaseUrl":"${{ secrets.SUPABASE_URL }}","supabaseAnonKey":"${{ secrets.SUPABASE_ANON_KEY }}","checkoutUrl":"${{ secrets.CHECKOUT_URL }}"}
+          JSON
+      - run: npm ci
+      - name: Build, sign and package
+        run: npm run dist
+      - name: Upload to Supabase
+        env:
+          NOTES: ${{ inputs.notes }}
+        shell: bash
+        run: node scripts/publish-release.mjs win "$NOTES"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: release/BoardSmyth-AI-Setup.exe
+          retention-days: 7
+
+  mac:
+    if: ${{ github.event_name == 'push' || inputs.build_mac }}
+    runs-on: macos-latest   # Apple Silicon
+    env:
+      CSC_LINK: ${{ secrets.MAC_CERT_P12_BASE64 }}
+      CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Write app-config.json
+        run: |
+          cat > app-config.json <<JSON
+          {"supabaseUrl":"${{ secrets.SUPABASE_URL }}","supabaseAnonKey":"${{ secrets.SUPABASE_ANON_KEY }}","checkoutUrl":"${{ secrets.CHECKOUT_URL }}"}
+          JSON
+      - run: npm ci
+      - name: Build, sign and notarize
+        run: npm run dist:mac
+      - name: Upload to Supabase
+        env:
+          NOTES: ${{ inputs.notes }}
+        run: node scripts/publish-release.mjs mac "$NOTES"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-installer
+          path: release/*.dmg
+          retention-days: 7

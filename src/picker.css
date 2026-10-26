@@ -1,0 +1,18 @@
+.picker { position: relative; }
+.picker-button { display: flex; align-items: center; gap: 8px; max-width: 280px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.picker-caret { color: var(--muted); font-size: 11px; }
+.picker-backdrop { position: fixed; inset: 0; z-index: 40; }
+.picker-panel { position: absolute; z-index: 50; top: calc(100% + 6px); left: 0; width: 420px; max-height: 480px; display: flex; flex-direction: column; gap: 8px; padding: 10px; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); }
+.picker-panel input, .picker-panel select { width: 100%; }
+.picker-heading { color: var(--muted); font-size: 12px; padding: 0 4px; }
+.picker-list { overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.picker-item { display: flex; justify-content: space-between; gap: 12px; text-align: left; background: none; border: none; border-radius: 8px; padding: 7px 10px; }
+.picker-item:hover { background: var(--panel-2); }
+.picker-vendor { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 170px; }
+.picker-empty { color: var(--muted); padding: 12px; font-size: 14px; }
+
+.options-bar { padding: 6px 14px; background: var(--panel); border-bottom: 1px solid var(--border); font-size: 13px; }
+.options-bar summary { cursor: pointer; color: var(--muted); }
+.options-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px 14px; padding: 10px 0 4px; }
+.options-grid label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: 12px; }
+.hint { padding: 6px 14px; color: var(--muted); font-size: 12px; background: var(--panel); border-bottom: 1px solid var(--border); }

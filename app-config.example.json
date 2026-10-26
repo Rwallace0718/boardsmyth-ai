@@ -1,0 +1,5 @@
+{
+  "supabaseUrl": "https://YOUR-PROJECT.supabase.co",
+  "supabaseAnonKey": "YOUR-SUPABASE-ANON-KEY",
+  "checkoutUrl": "https://YOUR-SITE.com/boardsmyth/subscribe"
+}

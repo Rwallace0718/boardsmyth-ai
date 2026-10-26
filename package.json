@@ -1,0 +1,43 @@
+{
+  "name": "boardsmyth",
+  "productName": "BoardSmyth AI",
+  "version": "0.2.0",
+  "description": "Describe what you want your Arduino to do. AI writes, compiles, fixes and uploads the program.",
+  "author": "Code Crafted Nexus LLC",
+  "private": true,
+  "main": "dist-electron/electron/main.js",
+  "scripts": {
+    "dev": "concurrently -k \"vite\" \"npm:dev:electron\"",
+    "dev:electron": "tsc -p tsconfig.node.json && wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .",
+    "build": "tsc -p tsconfig.node.json && tsc --noEmit && vite build",
+    "fetch-cli": "node scripts/fetch-arduino-cli.mjs",
+    "dist": "npm run fetch-cli && npm run build && node scripts/require-signing.mjs && electron-builder --publish never --config electron-builder.config.js",
+    "dist:mac": "npm run fetch-cli && npm run build && electron-builder --mac --publish never --config electron-builder.config.js",
+    "dist:unsigned": "npm run fetch-cli && npm run build && electron-builder --publish never --config electron-builder.config.js",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.node.json --noEmit"
+  },
+  "dependencies": {
+    "@monaco-editor/react": "^4.6.0",
+    "@supabase/supabase-js": "^2.45.0",
+    "@types/qrcode": "^1.5.6",
+    "monaco-editor": "^0.52.0",
+    "qrcode": "^1.5.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@types/ws": "^8.5.12",
+    "@vitejs/plugin-react": "^4.3.1",
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "electron": "^33.0.0",
+    "electron-builder": "^26.15.3",
+    "typescript": "^5.6.0",
+    "vite": "^5.4.0",
+    "wait-on": "^8.0.0"
+  }
+}

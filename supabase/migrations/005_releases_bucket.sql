@@ -1,0 +1,3 @@
+-- Public bucket that holds the installers: releases/win/... and releases/mac/...
+insert into storage.buckets (id, name, public) values ('releases', 'releases', true)
+on conflict (id) do update set public = true;

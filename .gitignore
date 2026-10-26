@@ -1,0 +1,7 @@
+node_modules
+dist
+dist-electron
+release
+app-config.json
+resources/arduino-cli/*
+!resources/arduino-cli/.gitkeep
