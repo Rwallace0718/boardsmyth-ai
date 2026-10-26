@@ -75,7 +75,13 @@ jobs:
           cache: npm
       - name: Write app-config.json
         shell: bash
+        env:
+          SB_URL: ${{ secrets.SUPABASE_URL }}
+          SB_ANON: ${{ secrets.SUPABASE_ANON_KEY }}
+          SB_CHECKOUT: ${{ secrets.CHECKOUT_URL }}
         run: |
+          if [ -z "$SB_URL" ] || [ -z "$SB_ANON" ]; then echo "::error::GitHub secret SUPABASE_URL or SUPABASE_ANON_KEY is empty. The app would not start. Fix the secret and run again."; exit 1; fi
+          if [ -z "$SB_CHECKOUT" ]; then echo "::warning::GitHub secret CHECKOUT_URL is empty. Subscribing from the app will not work."; fi
           cat > app-config.json <<JSON
           {"supabaseUrl":"${{ secrets.SUPABASE_URL }}","supabaseAnonKey":"${{ secrets.SUPABASE_ANON_KEY }}","checkoutUrl":"${{ secrets.CHECKOUT_URL }}"}
           JSON
@@ -112,7 +118,13 @@ jobs:
           node-version: 20
           cache: npm
       - name: Write app-config.json
+        env:
+          SB_URL: ${{ secrets.SUPABASE_URL }}
+          SB_ANON: ${{ secrets.SUPABASE_ANON_KEY }}
+          SB_CHECKOUT: ${{ secrets.CHECKOUT_URL }}
         run: |
+          if [ -z "$SB_URL" ] || [ -z "$SB_ANON" ]; then echo "::error::GitHub secret SUPABASE_URL or SUPABASE_ANON_KEY is empty. The app would not start. Fix the secret and run again."; exit 1; fi
+          if [ -z "$SB_CHECKOUT" ]; then echo "::warning::GitHub secret CHECKOUT_URL is empty. Subscribing from the app will not work."; fi
           cat > app-config.json <<JSON
           {"supabaseUrl":"${{ secrets.SUPABASE_URL }}","supabaseAnonKey":"${{ secrets.SUPABASE_ANON_KEY }}","checkoutUrl":"${{ secrets.CHECKOUT_URL }}"}
           JSON
