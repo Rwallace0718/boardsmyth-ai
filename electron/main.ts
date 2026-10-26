@@ -308,6 +308,7 @@ function registerIpc(): void {
     auth.signUp(email, password)
   );
   ipcMain.handle('auth:signOut', () => auth.signOut());
+  ipcMain.handle('auth:acceptTerms', () => auth.acceptTerms());
   ipcMain.handle('auth:openCheckout', () => auth.openCheckout());
   ipcMain.handle('auth:openManage', () => auth.openManage());
 

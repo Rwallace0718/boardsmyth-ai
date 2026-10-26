@@ -116,3 +116,7 @@ textarea { resize: none; width: 100%; }
 .history-bar label { display: flex; align-items: center; gap: 6px; }
 
 .link-btn { background: none; border: none; color: var(--accent); text-decoration: underline; cursor: pointer; padding: 0; font: inherit; }
+
+.agree { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: var(--muted); line-height: 1.4; text-align: left; }
+.agree input { margin-top: 2px; width: auto; }
+.agree a { color: var(--accent); }

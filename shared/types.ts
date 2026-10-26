@@ -85,6 +85,8 @@ export interface AuthState {
   hasOwnKey?: boolean;
   /** Hosted generations a non-subscriber gets each month. */
   freeLimit?: number;
+  /** True once this user has accepted the current Terms of Service and Privacy Policy. */
+  termsAccepted?: boolean;
 }
 
 export interface AuthResult {
@@ -128,6 +130,7 @@ export interface Api {
     signIn(email: string, password: string): Promise<AuthResult>;
     signUp(email: string, password: string): Promise<AuthResult>;
     signOut(): Promise<void>;
+    acceptTerms(): Promise<AuthResult>;
     openCheckout(): Promise<void>;
     openManage(): Promise<{ ok: boolean; error?: string }>;
   };

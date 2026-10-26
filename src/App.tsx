@@ -12,6 +12,7 @@ import type {
   UpdateState,
 } from '../shared/types';
 import LoginScreen from './LoginScreen';
+import TermsGate from './TermsGate';
 import BoardPicker from './BoardPicker';
 
 const STARTER = `// Describe what you want in the box on the left, then press Generate.
@@ -432,6 +433,17 @@ export default function App() {
     );
   }
   if (!auth.signedIn) return <LoginScreen onSignedIn={setAuth} />;
+  if (auth.termsAccepted === false)
+    return (
+      <TermsGate
+        email={auth.email}
+        onAccepted={setAuth}
+        onSignOut={async () => {
+          await window.api.auth.signOut();
+          await refreshAuth();
+        }}
+      />
+    );
 
   const needsSub = auth.subscribed === false;
   const freeLimit = auth.freeLimit ?? 5;

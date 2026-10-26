@@ -7,6 +7,9 @@ import type { AuthResult, AuthState } from '../shared/types';
 import { loadConfig } from './config';
 import { hasClaudeKey } from './keys';
 
+/** Change this date whenever the Terms of Service or Privacy Policy change in a way people must agree to again. */
+export const TERMS_VERSION = '2026-10-26';
+
 /** Session storage on disk, encrypted with the OS keychain when available. */
 function storageFile(): string {
   return path.join(app.getPath('userData'), 'session.bin');
@@ -117,6 +120,7 @@ export async function getState(): Promise<AuthState> {
     monthlyLimit: 300,
     hasOwnKey: hasClaudeKey(),
     freeLimit: 5,
+    termsAccepted: user.user_metadata?.terms_version === TERMS_VERSION,
   };
 }
 
@@ -127,7 +131,12 @@ export async function signIn(email: string, password: string): Promise<AuthResul
 }
 
 export async function signUp(email: string, password: string): Promise<AuthResult> {
-  const { data, error } = await supabase().auth.signUp({ email, password });
+  // The sign-up form only lets people through after they tick "I agree"; we keep the version and time with the account.
+  const { data, error } = await supabase().auth.signUp({
+    email,
+    password,
+    options: { data: { terms_version: TERMS_VERSION, terms_accepted_at: new Date().toISOString() } },
+  });
   if (error) return { ok: false, error: error.message };
   if (!data.session) {
     return {
@@ -135,6 +144,15 @@ export async function signUp(email: string, password: string): Promise<AuthResul
       error: 'Account created. Check your email to confirm it, then sign in.',
     };
   }
+  return { ok: true, state: await getState() };
+}
+
+/** Records that the signed-in person accepted the current Terms and Privacy Policy. */
+export async function acceptTerms(): Promise<AuthResult> {
+  const { error } = await supabase().auth.updateUser({
+    data: { terms_version: TERMS_VERSION, terms_accepted_at: new Date().toISOString() },
+  });
+  if (error) return { ok: false, error: error.message };
   return { ok: true, state: await getState() };
 }
 

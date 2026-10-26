@@ -11,6 +11,7 @@ export default function LoginScreen({ onSignedIn }: Props) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [agreed, setAgreed] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -45,8 +46,24 @@ export default function LoginScreen({ onSignedIn }: Props) {
           minLength={8}
           required
         />
+        {mode === 'signup' && (
+          <label className="agree">
+            <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} required />
+            <span>
+              I agree to the{' '}
+              <a href="https://boardsmythai.com/terms.html" target="_blank" rel="noreferrer">
+                Terms of Service
+              </a>{' '}
+              and{' '}
+              <a href="https://boardsmythai.com/privacy.html" target="_blank" rel="noreferrer">
+                Privacy Policy
+              </a>
+              .
+            </span>
+          </label>
+        )}
         {error && <div className="error">{error}</div>}
-        <button className="primary" disabled={busy}>
+        <button className="primary" disabled={busy || (mode === 'signup' && !agreed)}>
           {busy ? 'Please wait…' : mode === 'signin' ? 'Sign in' : 'Create account'}
         </button>
         <button

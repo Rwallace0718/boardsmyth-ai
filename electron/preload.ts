@@ -7,6 +7,7 @@ const api: Api = {
     signIn: (email, password) => ipcRenderer.invoke('auth:signIn', email, password),
     signUp: (email, password) => ipcRenderer.invoke('auth:signUp', email, password),
     signOut: () => ipcRenderer.invoke('auth:signOut'),
+    acceptTerms: () => ipcRenderer.invoke('auth:acceptTerms'),
     openCheckout: () => ipcRenderer.invoke('auth:openCheckout'),
     openManage: () => ipcRenderer.invoke('auth:openManage'),
   },
