@@ -16,6 +16,7 @@ import LoginScreen from './LoginScreen';
 import TermsGate from './TermsGate';
 import BoardPicker from './BoardPicker';
 import WiringPanel from './WiringPanel';
+import ProjectLibrary from './ProjectLibrary';
 
 const STARTER = `// Describe what you want in the box on the left, then press Generate.
 void setup() {
@@ -74,6 +75,7 @@ export default function App() {
   const [monitorOn, setMonitorOn] = useState(false);
   const [tab, setTab] = useState<'log' | 'serial' | 'wiring'>('log');
   const [wiring, setWiring] = useState<WiringRow[]>([]);
+  const [showProjects, setShowProjects] = useState(false);
   const [serial, setSerial] = useState('');
   const serialRef = useRef<HTMLPreElement>(null);
   const userPickedBoard = useRef(false);
@@ -476,6 +478,16 @@ export default function App() {
 
   return (
     <div className="app">
+      {showProjects && (
+        <ProjectLibrary
+          boardName={boardName}
+          onClose={() => setShowProjects(false)}
+          onPick={(p) => {
+            setPrompt(p.prompt);
+            setShowProjects(false);
+          }}
+        />
+      )}
       <header className="topbar">
         <strong className="brand">BoardSmyth AI</strong>
         <div className="field">
@@ -674,7 +686,8 @@ export default function App() {
           <div className="chat-log">
             {chat.length === 0 && (
               <p className="muted">
-                Try: “Blink an LED on pin 8 faster when I press the button on pin 2.”
+                Try: “Blink an LED on pin 8 faster when I press the button on pin 2.” Or press{' '}
+                <button className="link-btn" onClick={() => setShowProjects(true)}>Starter projects</button> for ready-made ideas.
               </p>
             )}
             {chat.map((m, i) => (
@@ -739,6 +752,9 @@ export default function App() {
             <div className="chat-buttons">
               <button className="primary" onClick={() => void generate()} disabled={working || outOfFree || needsKey}>
                 {busy ? 'Working…' : preparing ? 'Preparing board…' : 'Generate'}
+              </button>
+              <button title="Pick a ready-made project to start from" onClick={() => setShowProjects(true)} disabled={working}>
+                Starter projects
               </button>
               <button title="Send a photo from your phone camera" onClick={() => void togglePhone()} disabled={working}>
                 {phone ? 'Hide phone camera' : 'Photo from phone'}
