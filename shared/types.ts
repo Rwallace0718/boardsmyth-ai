@@ -43,12 +43,21 @@ export interface GenerateRequest {
   images?: string[];
 }
 
+export interface WiringRow {
+  pin: string;
+  part: string;
+  to: string;
+  note?: string;
+}
+
 export interface GenerateResult {
   ok: boolean;
   code: string;
   notes: string;
   /** Hardware risks the AI spotted, one per line. Empty when there are none. */
   safety?: string;
+  /** How to wire the parts to the board, in order. */
+  wiring?: WiringRow[];
   attempts: number;
   error?: string;
 }

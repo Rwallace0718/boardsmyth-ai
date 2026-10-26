@@ -1,4 +1,4 @@
-import type { GenerateRequest, GenerateResult, StatusEvent } from '../shared/types';
+import type { GenerateRequest, GenerateResult, StatusEvent, WiringRow } from '../shared/types';
 import { loadConfig } from './config';
 import { accessToken } from './auth';
 import { compile, ensureCore, ensureLibraries } from './arduino';
@@ -12,6 +12,7 @@ interface EdgeResponse {
   libraries?: string[];
   notes?: string;
   safety?: string;
+  wiring?: WiringRow[];
   error?: string;
   code_name?: string;
 }
@@ -119,6 +120,7 @@ export async function generateAndVerify(
   let code = '';
   let notes = '';
   let safety = '';
+  let wiring: WiringRow[] = [];
   let lastErrors = '';
 
   // Install the board core up front so the first compile is not slow mid-loop.
@@ -156,6 +158,7 @@ export async function generateAndVerify(
     code = resp.code;
     notes = resp.notes ?? notes;
     safety = resp.safety || safety;
+    wiring = resp.wiring?.length ? resp.wiring : wiring;
 
     const libs = await ensureLibraries(resp.libraries ?? [], (stage, message) =>
       emit({ stage, message })
@@ -168,7 +171,7 @@ export async function generateAndVerify(
     const built = await compile(code, req.fqbn, (stage, message) => emit({ stage, message }));
     if (built.ok) {
       emit({ stage: 'done', message: 'Compiled successfully.' });
-      return { ok: true, code, notes, safety, attempts: attempt };
+      return { ok: true, code, notes, safety, wiring, attempts: attempt };
     }
     lastErrors = built.output.slice(-4000);
   }

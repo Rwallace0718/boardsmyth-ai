@@ -120,3 +120,21 @@ textarea { resize: none; width: 100%; }
 .agree { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: var(--muted); line-height: 1.4; text-align: left; }
 .agree input { margin-top: 2px; width: auto; }
 .agree a { color: var(--accent); }
+
+/* Wiring tab */
+.wiring, .wiring-empty { flex: 1; overflow: auto; padding: 10px 14px; }
+.wiring-table { border-collapse: collapse; width: 100%; font-size: 13px; margin-bottom: 14px; }
+.wiring-table th, .wiring-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.wiring-table th { color: var(--muted, #98a2b3); font-weight: 600; }
+.pin { background: rgba(255,176,102,.15); border-radius: 4px; padding: 1px 6px; }
+.pin.power { background: rgba(255,110,110,.15); }
+.wiring-svg { width: 100%; max-width: 680px; height: auto; display: block; margin-bottom: 8px; }
+.w-board { fill: rgba(255,255,255,.04); stroke: currentColor; stroke-opacity: .35; }
+.w-title { fill: currentColor; font: 600 12px system-ui, sans-serif; }
+.w-pin { fill: currentColor; font: 12px ui-monospace, Consolas, monospace; }
+.w-pin.power { fill: #ff8a8a; }
+.w-dot { fill: #ffb066; }
+.w-wire { stroke: #ffb066; stroke-width: 2; }
+.w-wire.power { stroke: #ff8a8a; }
+.w-part { fill: rgba(255,255,255,.06); stroke: currentColor; stroke-opacity: .3; }
+.w-text { fill: currentColor; font: 12px system-ui, sans-serif; }

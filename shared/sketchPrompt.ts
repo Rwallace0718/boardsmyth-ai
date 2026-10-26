@@ -1,5 +1,7 @@
 // Prompt and reply parsing shared by the app (bring-your-own-key plan).
 // IMPORTANT: keep SYSTEM_PROMPT identical to the copy in supabase/functions/generate-sketch/index.ts.
+import type { WiringRow } from './types';
+
 export const MODEL = 'claude-sonnet-5-5';
 
 export const SYSTEM_PROMPT = `You are an expert embedded developer who writes Arduino sketches for non-expert users.
@@ -14,6 +16,7 @@ Rules:
 - If existing code and a change request are given, modify the existing code and keep everything the user did not ask to change.
 - If compiler errors are given, fix them. Do not change the program's behaviour.
 - If photos are attached, they show the user's real board, breadboard or parts. Use them to work out what is connected to which pin and write code that matches the actual wiring. If a wire, part or voltage in the photo looks wrong, missing or unsafe, say so in the safety block.
+- Always include a wiring block: a JSON array with one object per physical connection the user must make, in the order they should wire them. Each object has "pin" (the board pin, e.g. "D13", "GPIO4", "GND", "5V"), "part" (what it connects to, e.g. "Red LED anode"), "to" (the full wire path in plain words, including any resistor, e.g. "through a 220 ohm resistor to the LED's long leg; short leg to GND") and optionally "note". Use an empty array [] only if nothing needs wiring.
 - Always check the hardware for risks: LEDs without resistors, motors, relays or servos powered or driven straight from a pin, 5V signals into 3.3V boards, shorted pins, too many LEDs for the supply, or pins that are not safe to use on this board. List each real risk in the safety block, one per line, with the fix.
 
 Reply in exactly this format and nothing else:
@@ -28,6 +31,10 @@ Reply in exactly this format and nothing else:
 
 \`\`\`notes
 <2-5 short plain-English lines: wiring and anything the user should know>
+\`\`\`
+
+\`\`\`wiring
+<JSON array of connections as described above>
 \`\`\`
 
 \`\`\`safety
@@ -54,7 +61,22 @@ export function buildUserMessage(opts: {
   return msg;
 }
 
-export function parseReply(text: string): { code: string; libraries: string[]; notes: string; safety: string } {
+/** Reads the AI's wiring block. Anything malformed is dropped rather than shown. */
+export function parseWiring(raw: string): WiringRow[] {
+  try {
+    const data = JSON.parse(raw);
+    if (!Array.isArray(data)) return [];
+    const clip = (v: unknown, n: number) => String(v ?? '').trim().slice(0, n);
+    return data
+      .slice(0, 40)
+      .map((r) => ({ pin: clip(r?.pin, 24), part: clip(r?.part, 80), to: clip(r?.to, 240), note: clip(r?.note, 160) || undefined }))
+      .filter((r) => r.pin && (r.part || r.to));
+  } catch {
+    return [];
+  }
+}
+
+export function parseReply(text: string): { code: string; libraries: string[]; notes: string; safety: string; wiring: WiringRow[] } {
   const rawSafety = extractBlock(text, 'safety');
   return {
     safety: /^none\.?$/i.test(rawSafety) ? '' : rawSafety,
@@ -65,5 +87,6 @@ export function parseReply(text: string): { code: string; libraries: string[]; n
       .filter(Boolean)
       .slice(0, 10),
     notes: extractBlock(text, 'notes'),
+    wiring: parseWiring(extractBlock(text, 'wiring')),
   };
 }

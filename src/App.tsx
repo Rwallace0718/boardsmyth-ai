@@ -6,6 +6,7 @@ import type {
   BoardOption,
   DetectedPort,
   HistoryItem,
+  WiringRow,
   GenerateResult,
   PhoneSession,
   StatusEvent,
@@ -14,6 +15,7 @@ import type {
 import LoginScreen from './LoginScreen';
 import TermsGate from './TermsGate';
 import BoardPicker from './BoardPicker';
+import WiringPanel from './WiringPanel';
 
 const STARTER = `// Describe what you want in the box on the left, then press Generate.
 void setup() {
@@ -70,7 +72,8 @@ export default function App() {
   const [logDetail, setLogDetail] = useState<{ for: string; text: string } | null>(null);
   const [showDetail, setShowDetail] = useState(false);
   const [monitorOn, setMonitorOn] = useState(false);
-  const [tab, setTab] = useState<'log' | 'serial'>('log');
+  const [tab, setTab] = useState<'log' | 'serial' | 'wiring'>('log');
+  const [wiring, setWiring] = useState<WiringRow[]>([]);
   const [serial, setSerial] = useState('');
   const serialRef = useRef<HTMLPreElement>(null);
   const userPickedBoard = useRef(false);
@@ -341,6 +344,8 @@ export default function App() {
     if (res.code) setCode(res.code);
     setLastSafety(res.safety ?? '');
     if (res.ok) {
+      setWiring(res.wiring ?? []);
+      if (res.wiring?.length) setTab('wiring');
       setChat((c) => [
         ...c,
         { role: 'ai', text: res.notes || 'Done. The program compiled successfully.' },
@@ -801,6 +806,9 @@ export default function App() {
               <button className={tab === 'log' ? 'active' : ''} onClick={() => setTab('log')}>
                 Output
               </button>
+              <button className={tab === 'wiring' ? 'active' : ''} onClick={() => setTab('wiring')}>
+                Wiring{wiring.length ? ` (${wiring.length})` : ''}
+              </button>
               <button className={tab === 'serial' ? 'active' : ''} onClick={() => setTab('serial')}>
                 Serial monitor
               </button>
@@ -829,7 +837,9 @@ export default function App() {
                 </>
               )}
             </div>
-            {tab === 'log' ? (
+            {tab === 'wiring' ? (
+              <WiringPanel rows={wiring} boardName={boardName} />
+            ) : tab === 'log' ? (
               <pre className="output">
                 {log || 'Output from checking and uploading shows here.'}
                 {logDetail && logDetail.for === log && (
