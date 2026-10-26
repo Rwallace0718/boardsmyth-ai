@@ -241,6 +241,15 @@ export async function openCheckout(): Promise<void> {
   await shell.openExternal(url.toString());
 }
 
+/** Opens the Schools plan checkout page (seats) with the teacher's account id. */
+export async function openSchoolsCheckout(): Promise<void> {
+  const { data } = await supabase().auth.getSession();
+  const user = data.session?.user;
+  const url = new URL('https://boardsmythai.com/schools.html');
+  if (user) url.searchParams.set('uid', user.id);
+  await shell.openExternal(url.toString());
+}
+
 /** Opens the Paddle-hosted page where the user can cancel or update their payment method. */
 export async function openManage(): Promise<{ ok: boolean; error?: string }> {
   const sb = supabase();

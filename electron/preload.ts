@@ -23,6 +23,7 @@ const api: Api = {
   },
   classes: {
     call: (body) => ipcRenderer.invoke('classes:call', body),
+    buy: () => ipcRenderer.invoke('classes:buy'),
   },
   localAi: {
     get: () => ipcRenderer.invoke('localAi:get'),

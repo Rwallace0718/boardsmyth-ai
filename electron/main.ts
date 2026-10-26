@@ -268,6 +268,7 @@ function registerIpc(): void {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
   });
+  ipcMain.handle('classes:buy', () => auth.openSchoolsCheckout());
   ipcMain.handle('classes:call', (_e, body: Record<string, unknown>) => auth.callClasses(body ?? {}));
   ipcMain.handle('localAi:get', () => getLocalAi());
   ipcMain.handle('localAi:set', (_e, s: LocalAiSettings) => setLocalAi(s));

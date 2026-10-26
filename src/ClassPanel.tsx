@@ -72,7 +72,11 @@ export default function ClassPanel({
               </button>
             </div>
             <h3>Teacher?</h3>
-            <p className="muted small">With an active Schools plan you can create one class, hand out its code and see what your students share. Schools plan sign-up is handled by Code Crafted Nexus.</p>
+            <p className="muted small">With an active Schools plan you can create one class, hand out its code and see what your students share. </p>
+            <p>
+              <button onClick={() => void window.api.classes.buy()}>Buy Schools plan ($5 per student a month)</button>{' '}
+              <button onClick={() => void load()}>I've bought it — refresh</button>
+            </p>
             <div className="projects-filter" style={{ flexDirection: 'row', gap: 8 }}>
               <input placeholder="Class name, e.g. Period 3 Robotics" value={name} onChange={(e) => setName(e.target.value)} />
               <button disabled={busy || !name.trim()} onClick={() => void act({ action: 'create', name }, 'Class created.')}>

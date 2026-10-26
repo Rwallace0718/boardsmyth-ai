@@ -243,6 +243,8 @@ export interface Api {
   classes: {
     /** me | create | join | leave | gallery | share | unshare | remove | newcode (see the classes server function). */
     call(body: Record<string, unknown>): Promise<ClassReply>;
+    /** Opens the Schools plan checkout page in the browser. */
+    buy(): Promise<void>;
   };
   libraries: {
     /** Searches the Arduino Library Manager. Empty query returns nothing. */
