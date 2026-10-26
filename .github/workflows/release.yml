@@ -94,6 +94,12 @@ jobs:
           security list-keychains -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
           security default-keychain -s "$KC"
           rm -f "$RUNNER_TEMP/cert.p12"
+          # The bundle holds two certificates with the same Developer ID name, which makes codesign
+          # report "ambiguous". Keep the first one in this temporary keychain and drop the rest.
+          KEEP=1
+          for H in $(security find-identity -v -p codesigning "$KC" | grep "Developer ID Application" | awk '{print $2}'); do
+            if [ "$KEEP" = "1" ]; then KEEP=0; else security delete-certificate -Z "$H" "$KC"; fi
+          done
           echo "Signing identities available:"
           security find-identity -v -p codesigning "$KC" | sed -E 's/[0-9A-F]{40}/<hash>/'
       - name: Build, sign and notarize
