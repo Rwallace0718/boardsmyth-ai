@@ -2,6 +2,10 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
+import * as os from 'os';
+import { spawn } from 'child_process';
+import { Readable } from 'stream';
+import { pipeline } from 'stream/promises';
 import QRCode from 'qrcode';
 import { loadConfig } from './config';
 import type { Draft, FileResult, GenerateRequest, LocalAiSettings, MenuAction, PhoneSession, StatusEvent, UpdateState } from '../shared/types';
@@ -102,6 +106,53 @@ async function refreshUpdateState(): Promise<UpdateState> {
   return updateState;
 }
 
+/** Downloads the installer inside the app, then starts it. Only our own servers are allowed as the source. */
+async function downloadAndInstall(u: UpdateState): Promise<void> {
+  const parent = win && !win.isDestroyed() ? win : undefined;
+  const fail = (detail: string) =>
+    dialog.showMessageBox({ type: 'warning', title: 'Could not install the update', message: 'The automatic update did not work, so the download page will open instead.', detail }).then(() => shell.openExternal(DOWNLOAD_PAGE));
+  let target: URL;
+  try {
+    target = new URL(u.url ?? '');
+    const okHosts = [new URL(loadConfig().supabaseUrl).host, 'boardsmythai.com', 'www.boardsmythai.com'];
+    if (target.protocol !== 'https:' || !okHosts.includes(target.host) || !/\.(exe|dmg)$/i.test(target.pathname)) throw new Error('Unexpected download address.');
+  } catch {
+    await shell.openExternal(u.url || DOWNLOAD_PAGE);
+    return;
+  }
+  const file = path.join(os.tmpdir(), `BoardSmyth-AI-Update-${u.latest ?? 'new'}${process.platform === 'darwin' ? '.dmg' : '.exe'}`);
+  try {
+    emitStatus('installing', `Downloading BoardSmyth AI ${u.latest}…`);
+    const res = await fetch(target.toString());
+    if (!res.ok || !res.body) throw new Error(`Server returned ${res.status}`);
+    const total = Number(res.headers.get('content-length')) || 0;
+    let got = 0;
+    const body = Readable.fromWeb(res.body as never);
+    body.on('data', (chunk: Buffer) => {
+      got += chunk.length;
+      if (total) {
+        parent?.setProgressBar(got / total);
+        emitStatus('installing', `Downloading BoardSmyth AI ${u.latest}… ${Math.round((got / total) * 100)}%`);
+      }
+    });
+    await pipeline(body, fs.createWriteStream(file));
+    parent?.setProgressBar(-1);
+    if (total && got !== total) throw new Error('The download was cut short.');
+    if (process.platform === 'win32') {
+      emitStatus('done', 'Update downloaded. Closing to install…');
+      spawn(file, [], { detached: true, stdio: 'ignore' }).unref();
+      setTimeout(() => app.quit(), 500);
+    } else {
+      // A Mac disk image cannot be installed by the app itself: open it so the person drags the app into Applications.
+      await shell.openPath(file);
+      emitStatus('done', 'Update downloaded. Drag BoardSmyth AI into Applications, replacing the old one, then reopen it.');
+    }
+  } catch (e) {
+    parent?.setProgressBar(-1);
+    await fail(e instanceof Error ? e.message : String(e));
+  }
+}
+
 /** The "Check for updates" button and menu item. Always answers, so the person sees something happen. */
 async function checkForUpdates(): Promise<void> {
   const parent = win && !win.isDestroyed() ? win : undefined;
@@ -114,12 +165,12 @@ async function checkForUpdates(): Promise<void> {
         type: 'info',
         title: 'Update available',
         message: `BoardSmyth AI ${u.latest} is available. You have ${u.current}.`,
-        detail: u.notes ?? 'Download the new version and install it over this one.',
-        buttons: ['Download', 'Later'],
+        detail: u.notes ?? 'BoardSmyth AI will download it and install it for you.',
+        buttons: [process.platform === 'win32' ? 'Download and install' : 'Download', 'Later'],
         defaultId: 0,
         cancelId: 1,
       });
-      if (r.response === 0) void shell.openExternal(u.url || DOWNLOAD_PAGE);
+      if (r.response === 0) void downloadAndInstall(u);
     } else {
       await say({ type: 'info', title: 'Up to date', message: `You have the latest version (${u.current}).` });
     }
