@@ -80,6 +80,21 @@ jobs:
           {"supabaseUrl":"${{ secrets.SUPABASE_URL }}","supabaseAnonKey":"${{ secrets.SUPABASE_ANON_KEY }}","checkoutUrl":"${{ secrets.CHECKOUT_URL }}"}
           JSON
       - run: npm ci
+      - name: Check certificate secrets (prints sizes only, never values)
+        run: |
+          echo "P12 secret length: ${#CSC_LINK}"
+          echo "Password length: ${#CSC_KEY_PASSWORD}"
+          printf %s "$CSC_LINK" | base64 --decode > /tmp/cert.p12
+          echo "Decoded file size: $(wc -c < /tmp/cert.p12) bytes"
+          security create-keychain -p tmp /tmp/check.keychain
+          if security import /tmp/cert.p12 -k /tmp/check.keychain -P "$CSC_KEY_PASSWORD" -T /usr/bin/codesign; then
+            echo "CERTIFICATE IMPORT OK"
+          else
+            echo "CERTIFICATE IMPORT FAILED"
+          fi
+          rm -f /tmp/cert.p12
+          security delete-keychain /tmp/check.keychain || true
+        continue-on-error: true
       - name: Build, sign and notarize
         run: npm run dist:mac
       - name: Upload to Supabase
