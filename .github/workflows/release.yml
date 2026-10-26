@@ -1,5 +1,7 @@
 # Builds BoardSmyth AI installers and uploads them to Supabase Storage (bucket "releases").
-# Run it from the GitHub "Actions" tab (Run workflow), or push a tag like v0.2.1.
+# Run it from the GitHub "Actions" tab (Run workflow). The first job raises the version number in package.json
+# by itself (patch by default, e.g. 0.2.1 -> 0.2.2) and commits it, then both installers are built from that commit.
+# Pushing a tag like v0.3.0 also works and builds that exact version without bumping.
 # One job builds Windows (signed with Azure Artifact Signing), one builds Mac (signed + notarized).
 name: Release
 
@@ -10,6 +12,11 @@ on:
         description: What is new in this version (shown in the app's update message)
         required: false
         default: ''
+      bump:
+        description: How to raise the version number first
+        type: choice
+        options: [patch, minor, major, none]
+        default: patch
       build_windows:
         description: Build Windows
         type: boolean
@@ -22,7 +29,34 @@ on:
     tags: ['v*']
 
 jobs:
+  version:
+    if: ${{ github.event_name == 'push' || inputs.build_windows || inputs.build_mac }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      sha: ${{ steps.bump.outputs.sha }}
+      version: ${{ steps.bump.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Raise the version number
+        id: bump
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "$BUMP" != "none" ]; then
+            npm version "$BUMP" --no-git-tag-version
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -am "Release v$(node -p "require('./package.json').version")"
+            git push
+          fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+          echo "Building version $(node -p "require('./package.json').version")" >> "$GITHUB_STEP_SUMMARY"
+
   windows:
+    needs: version
     if: ${{ github.event_name == 'push' || inputs.build_windows }}
     runs-on: windows-latest
     env:
@@ -33,6 +67,8 @@ jobs:
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -58,6 +94,7 @@ jobs:
           retention-days: 7
 
   mac:
+    needs: version
     if: ${{ github.event_name == 'push' || inputs.build_mac }}
     runs-on: macos-latest   # Apple Silicon
     env:
@@ -68,6 +105,8 @@ jobs:
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 20

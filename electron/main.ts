@@ -20,18 +20,27 @@ function send(channel: string, payload: unknown): void {
 const emitStatus = (stage: StatusEvent['stage'], message: string) =>
   send('status', { stage, message } satisfies StatusEvent);
 
-// Installers live in the public Supabase "releases" bucket (win/ and mac/ folders); each folder has a version.json.
-// The old website copy is the fallback.
+// The newest version lives in the Supabase table "app_releases" (written by the release workflow, never cached).
+// Fallbacks: the version.json file next to each installer, then the old copy on the website.
 const platformFolder = () => (process.platform === 'darwin' ? 'mac' : 'win');
-const updateUrls = (): string[] => {
-  const urls: string[] = [];
+interface UpdateSource {
+  url: string;
+  headers?: Record<string, string>;
+}
+const updateSources = (): UpdateSource[] => {
+  const list: UpdateSource[] = [];
   try {
-    urls.push(`${loadConfig().supabaseUrl}/storage/v1/object/public/releases/${platformFolder()}/version.json`);
+    const cfg = loadConfig();
+    list.push({
+      url: `${cfg.supabaseUrl}/rest/v1/app_releases?platform=eq.${platformFolder()}&select=version,url,notes&limit=1`,
+      headers: { apikey: cfg.supabaseAnonKey, Authorization: `Bearer ${cfg.supabaseAnonKey}` },
+    });
+    list.push({ url: `${cfg.supabaseUrl}/storage/v1/object/public/releases/${platformFolder()}/version.json` });
   } catch {
     /* no config yet */
   }
-  urls.push('https://boardsmythai.com/downloads/version.json');
-  return urls;
+  list.push({ url: 'https://boardsmythai.com/downloads/version.json' });
+  return list;
 };
 const DOWNLOAD_PAGE = 'https://boardsmythai.com/download.html';
 
@@ -50,26 +59,35 @@ let updateState: UpdateState = { current: app.getVersion(), available: false };
 
 /** Asks the release server for the newest version, remembers it and tells the window. Throws if no server answers. */
 async function refreshUpdateState(): Promise<UpdateState> {
-  let res: Response | undefined;
+  let info: { version?: string; url?: string; notes?: string } | undefined;
   let lastErr = '';
-  for (const url of updateUrls()) {
+  for (const src of updateSources()) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 10_000);
     try {
-      const r = await fetch(`${url}?t=${Date.now()}`, { signal: ctrl.signal });
-      if (r.ok) {
-        res = r;
+      const sep = src.url.includes('?') ? '&' : '?';
+      const r = await fetch(`${src.url}${sep}t=${Date.now()}`, {
+        signal: ctrl.signal,
+        headers: { 'Cache-Control': 'no-cache', ...src.headers },
+      });
+      if (!r.ok) {
+        lastErr = `Server returned ${r.status}`;
+        continue;
+      }
+      const body = (await r.json()) as unknown;
+      const row = (Array.isArray(body) ? body[0] : body) as typeof info;
+      if (row?.version) {
+        info = row;
         break;
       }
-      lastErr = `Server returned ${r.status}`;
+      lastErr = 'No version information found';
     } catch (e) {
       lastErr = e instanceof Error ? e.message : String(e);
     } finally {
       clearTimeout(timer);
     }
   }
-  if (!res) throw new Error(lastErr || 'No update server reachable');
-  const info = (await res.json()) as { version?: string; url?: string; notes?: string };
+  if (!info) throw new Error(lastErr || 'No update server reachable');
   const current = app.getVersion();
   const available = !!info.version && isNewer(info.version, current);
   updateState = {

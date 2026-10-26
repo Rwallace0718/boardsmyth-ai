@@ -41,4 +41,16 @@ for (const f of wanted) {
 }
 const info = { version, url: mainUrl, notes, published: new Date().toISOString() };
 await put(`${platform}/version.json`, JSON.stringify(info), 'application/json');
+// The app reads the newest version from this table (the file CDN can serve an old copy for a while).
+const dbRes = await fetch(`${base}/rest/v1/app_releases?on_conflict=platform`, {
+  method: 'POST',
+  headers: {
+    Authorization: `Bearer ${key}`,
+    apikey: key,
+    'Content-Type': 'application/json',
+    Prefer: 'resolution=merge-duplicates',
+  },
+  body: JSON.stringify({ platform, version, url: mainUrl, notes, published: info.published }),
+});
+if (!dbRes.ok) throw new Error(`Could not record the release in app_releases: ${dbRes.status} ${await dbRes.text()}`);
 console.log(`Published ${platform} ${version}: ${mainUrl}`);
