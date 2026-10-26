@@ -6,6 +6,7 @@ import type {
   BoardOption,
   DetectedPort,
   HistoryItem,
+  GenerateResult,
   PhoneSession,
   StatusEvent,
   UpdateState,
@@ -319,13 +320,19 @@ export default function App() {
 
     const hasUserCode = code.trim() !== '' && code !== STARTER;
     if (hasUserCode) pushHistory(`Before: ${(override?.shown ?? request).slice(0, 40)}`, code);
-    const res = await window.api.generate({
-      prompt: request,
-      fqbn,
-      boardName,
-      currentCode: hasUserCode ? code : undefined,
-      images: photos.length ? photos : undefined,
-    });
+    let res: GenerateResult;
+    try {
+      res = await window.api.generate({
+        prompt: request,
+        fqbn,
+        boardName,
+        currentCode: hasUserCode ? code : undefined,
+        images: photos.length ? photos : undefined,
+      });
+    } catch (e) {
+      // Never leave the app stuck "busy" (that locks the prompt box) if the request itself blows up.
+      res = { ok: false, error: `The request failed: ${e instanceof Error ? e.message : String(e)}` } as GenerateResult;
+    }
 
     if (res.code) setCode(res.code);
     setLastSafety(res.safety ?? '');
@@ -349,10 +356,15 @@ export default function App() {
   async function runCompile() {
     setBusy(true);
     setTab('log');
-    const res = await window.api.compile(code, fqbn);
-    setLog(res.ok ? `Compiled successfully.\n\n${res.output}` : res.output);
-    setBusy(false);
-    setStatus(null);
+    try {
+      const res = await window.api.compile(code, fqbn);
+      setLog(res.ok ? `Compiled successfully.\n\n${res.output}` : res.output);
+    } catch (e) {
+      setLog(`Check failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+      setStatus(null);
+    }
   }
 
   async function runUpload() {
@@ -369,10 +381,15 @@ export default function App() {
     setBusy(true);
     setTab('log');
     setMonitorOn(false);
-    const res = await window.api.upload(code, fqbn, port);
-    setLog(res.ok ? `Uploaded to ${port}.\n\n${res.output}` : res.output);
-    setBusy(false);
-    setStatus(null);
+    try {
+      const res = await window.api.upload(code, fqbn, port);
+      setLog(res.ok ? `Uploaded to ${port}.\n\n${res.output}` : res.output);
+    } catch (e) {
+      setLog(`Upload failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+      setStatus(null);
+    }
   }
 
   async function toggleMonitor() {
@@ -684,7 +701,6 @@ export default function App() {
                   void generate();
                 }
               }}
-              disabled={working}
               rows={3}
             />
             <div className="chat-buttons">

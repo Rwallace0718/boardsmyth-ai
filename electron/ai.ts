@@ -29,6 +29,7 @@ async function callEdge(body: Record<string, unknown>): Promise<EdgeResponse> {
       apikey: cfg.supabaseAnonKey,
     },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(180_000), // give up after 3 minutes instead of hanging forever
   });
 
   let json: EdgeResponse = {};
@@ -83,6 +84,7 @@ async function callClaudeDirect(body: Record<string, unknown>): Promise<EdgeResp
         },
       ],
     }),
+    signal: AbortSignal.timeout(180_000),
   });
 
   if (res.status === 401) return { error: 'Anthropic rejected your API key. Check it in Settings.', code_name: 'nokey' };
