@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { Api, MenuAction, StatusEvent } from '../shared/types';
+import type { Api, MenuAction, StatusEvent, UpdateState } from '../shared/types';
 
 const api: Api = {
   auth: {
@@ -45,6 +45,12 @@ const api: Api = {
     poll: (session) => ipcRenderer.invoke('phone:poll', session),
   },
   checkForUpdates: () => ipcRenderer.invoke('update:check'),
+  updateState: () => ipcRenderer.invoke('update:state'),
+  onUpdateState: (cb) => {
+    const handler = (_: unknown, u: UpdateState) => cb(u);
+    ipcRenderer.on('update:state', handler);
+    return () => ipcRenderer.removeListener('update:state', handler);
+  },
   onMenu: (cb) => {
     const handler = (_: unknown, a: MenuAction) => cb(a);
     ipcRenderer.on('menu:action', handler);

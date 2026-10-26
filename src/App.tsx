@@ -8,6 +8,7 @@ import type {
   HistoryItem,
   PhoneSession,
   StatusEvent,
+  UpdateState,
 } from '../shared/types';
 import LoginScreen from './LoginScreen';
 import BoardPicker from './BoardPicker';
@@ -77,6 +78,7 @@ export default function App() {
   const [images, setImages] = useState<string[]>([]);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [phone, setPhone] = useState<PhoneSession | null>(null);
+  const [update, setUpdate] = useState<UpdateState | null>(null);
   const [lastSafety, setLastSafety] = useState('');
   const [dragOver, setDragOver] = useState(false);
 
@@ -107,11 +109,14 @@ export default function App() {
     void refreshAuth();
     void window.api.boards.popular().then(setPopular);
     const offStatus = window.api.onStatus(setStatus);
+    void window.api.updateState().then(setUpdate);
+    const offUpdate = window.api.onUpdateState(setUpdate);
     const offData = window.api.monitor.onData((chunk) =>
       setSerial((s) => (s + chunk).slice(-20000))
     );
     return () => {
       offStatus();
+      offUpdate();
       offData();
     };
   }, [refreshAuth]);
@@ -506,8 +511,12 @@ export default function App() {
             Manage subscription
           </button>
         )}
-        <button className="link" onClick={() => void window.api.checkForUpdates()}>
-          Check for updates
+        <button
+          className={update?.available ? 'link update-available' : 'link'}
+          title={update?.available ? `Version ${update.latest} is ready to download` : 'Look for a newer version'}
+          onClick={() => void window.api.checkForUpdates()}
+        >
+          {update?.available ? `Update available: ${update.latest}` : 'Check for updates'}
         </button>
         <button
           className="link"

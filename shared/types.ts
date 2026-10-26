@@ -171,4 +171,15 @@ export interface Api {
   onMenu(cb: (a: MenuAction) => void): () => void;
   /** Looks for a newer version and tells the user (a dialog is shown by the app). */
   checkForUpdates(): Promise<void>;
+  /** Latest known update state (checked at launch and every few hours). */
+  updateState(): Promise<UpdateState>;
+  onUpdateState(cb: (u: UpdateState) => void): () => void;
+}
+
+export interface UpdateState {
+  current: string;
+  available: boolean;
+  latest?: string;
+  url?: string;
+  notes?: string;
 }

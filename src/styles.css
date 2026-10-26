@@ -92,6 +92,13 @@ textarea { resize: none; width: 100%; }
   border-radius: 8px;
 }
 .topbar button.link:hover:not(:disabled) { border-color: var(--accent); }
+/* Shown when a newer version is waiting on the server. */
+.topbar button.link.update-available {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #04110e;
+  font-weight: 600;
+}
 
 /* Photos, phone camera, version history, safety warnings */
 .bubble.warn { background: #3b2f12; border: 1px solid #7a5d1c; color: #fde68a; }

@@ -4,7 +4,7 @@ import * as path from 'path';
 import { randomUUID } from 'crypto';
 import QRCode from 'qrcode';
 import { loadConfig } from './config';
-import type { Draft, FileResult, GenerateRequest, MenuAction, PhoneSession, StatusEvent } from '../shared/types';
+import type { Draft, FileResult, GenerateRequest, MenuAction, PhoneSession, StatusEvent, UpdateState } from '../shared/types';
 import * as arduino from './arduino';
 import * as auth from './auth';
 import { generateAndVerify } from './ai';
@@ -46,58 +46,76 @@ function isNewer(latest: string, current: string): boolean {
   return false;
 }
 
-/** Asks the website for the newest version. `silent` = only speak up when there is an update. */
-async function checkForUpdates(silent: boolean): Promise<void> {
+let updateState: UpdateState = { current: app.getVersion(), available: false };
+
+/** Asks the release server for the newest version, remembers it and tells the window. Throws if no server answers. */
+async function refreshUpdateState(): Promise<UpdateState> {
+  let res: Response | undefined;
+  let lastErr = '';
+  for (const url of updateUrls()) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 10_000);
+    try {
+      const r = await fetch(`${url}?t=${Date.now()}`, { signal: ctrl.signal });
+      if (r.ok) {
+        res = r;
+        break;
+      }
+      lastErr = `Server returned ${r.status}`;
+    } catch (e) {
+      lastErr = e instanceof Error ? e.message : String(e);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  if (!res) throw new Error(lastErr || 'No update server reachable');
+  const info = (await res.json()) as { version?: string; url?: string; notes?: string };
+  const current = app.getVersion();
+  const available = !!info.version && isNewer(info.version, current);
+  updateState = {
+    current,
+    available,
+    latest: info.version,
+    url: info.url || DOWNLOAD_PAGE,
+    notes: info.notes ? String(info.notes) : undefined,
+  };
+  send('update:state', updateState);
+  return updateState;
+}
+
+/** The "Check for updates" button and menu item. Always answers, so the person sees something happen. */
+async function checkForUpdates(): Promise<void> {
   const parent = win && !win.isDestroyed() ? win : undefined;
   const say = (opts: Electron.MessageBoxOptions) =>
     parent ? dialog.showMessageBox(parent, opts) : dialog.showMessageBox(opts);
   try {
-    let res: Response | undefined;
-    let lastErr = '';
-    for (const url of updateUrls()) {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 10_000);
-      try {
-        const r = await fetch(`${url}?t=${Date.now()}`, { signal: ctrl.signal });
-        if (r.ok) {
-          res = r;
-          break;
-        }
-        lastErr = `Server returned ${r.status}`;
-      } catch (e) {
-        lastErr = e instanceof Error ? e.message : String(e);
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-    if (!res) throw new Error(lastErr || 'No update server reachable');
-    const info = (await res.json()) as { version?: string; url?: string; notes?: string };
-    const current = app.getVersion();
-    if (info.version && isNewer(info.version, current)) {
+    const u = await refreshUpdateState();
+    if (u.available) {
       const r = await say({
         type: 'info',
         title: 'Update available',
-        message: `BoardSmyth AI ${info.version} is available. You have ${current}.`,
-        detail: info.notes ? String(info.notes) : 'Download the new version and install it over this one.',
+        message: `BoardSmyth AI ${u.latest} is available. You have ${u.current}.`,
+        detail: u.notes ?? 'Download the new version and install it over this one.',
         buttons: ['Download', 'Later'],
         defaultId: 0,
         cancelId: 1,
       });
-      if (r.response === 0) void shell.openExternal(info.url || DOWNLOAD_PAGE);
-    } else if (!silent) {
-      await say({ type: 'info', title: 'Up to date', message: `You have the latest version (${current}).` });
+      if (r.response === 0) void shell.openExternal(u.url || DOWNLOAD_PAGE);
+    } else {
+      await say({ type: 'info', title: 'Up to date', message: `You have the latest version (${u.current}).` });
     }
   } catch (err) {
-    if (!silent) {
-      await say({
-        type: 'warning',
-        title: 'Could not check for updates',
-        message: 'Could not reach the BoardSmyth AI website. Check your internet connection and try again.',
-        detail: err instanceof Error ? err.message : String(err),
-      });
-    }
+    await say({
+      type: 'warning',
+      title: 'Could not check for updates',
+      message: 'Could not reach the BoardSmyth AI update server. Check your internet connection and try again.',
+      detail: err instanceof Error ? err.message : String(err),
+    });
   }
 }
+
+/** Quiet background check: no dialogs, just updates the button in the window. */
+const backgroundUpdateCheck = () => void refreshUpdateState().catch(() => undefined);
 
 const draftFile = () => path.join(app.getPath('userData'), 'draft.json');
 
@@ -123,7 +141,7 @@ function buildMenu(): void {
     {
       role: 'help',
       submenu: [
-        { label: 'Check for updates…', click: () => void checkForUpdates(false) },
+        { label: 'Check for updates…', click: () => void checkForUpdates() },
         {
           label: 'BoardSmyth AI website',
           click: () => void shell.openExternal('https://boardsmythai.com'),
@@ -177,7 +195,8 @@ function createWindow(): void {
 }
 
 function registerIpc(): void {
-  ipcMain.handle('update:check', () => checkForUpdates(false));
+  ipcMain.handle('update:check', () => checkForUpdates());
+  ipcMain.handle('update:state', () => updateState);
   ipcMain.handle('file:save', async (_e, code: string, target: string, saveAs: boolean): Promise<FileResult> => {
     try {
       let dest = target;
@@ -296,7 +315,8 @@ app.whenReady().then(() => {
   registerIpc();
   buildMenu();
   createWindow();
-  setTimeout(() => void checkForUpdates(true), 15_000);
+  setTimeout(backgroundUpdateCheck, 4_000);
+  setInterval(backgroundUpdateCheck, 4 * 60 * 60 * 1000);
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
