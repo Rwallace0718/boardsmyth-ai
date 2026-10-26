@@ -41,6 +41,8 @@ export interface GenerateRequest {
   currentCode?: string;
   /** Photos of the board or wiring as data:image/jpeg;base64 URLs (max 3). */
   images?: string[];
+  /** Teaching mode: also return a lesson that explains the program. */
+  teach?: boolean;
 }
 
 export interface WiringRow {
@@ -53,6 +55,13 @@ export interface WiringRow {
   kind?: string;
 }
 
+export interface Lesson {
+  summary: string;
+  walkthrough: { part: string; explain: string }[];
+  concepts: { term: string; meaning: string }[];
+  quiz: { q: string; a: string }[];
+}
+
 export interface GenerateResult {
   ok: boolean;
   code: string;
@@ -61,6 +70,8 @@ export interface GenerateResult {
   safety?: string;
   /** How to wire the parts to the board, in order. */
   wiring?: WiringRow[];
+  /** Present when Teaching mode was on. */
+  lesson?: Lesson;
   attempts: number;
   error?: string;
 }

@@ -1,6 +1,6 @@
 // Prompt and reply parsing shared by the app (bring-your-own-key plan).
 // IMPORTANT: keep SYSTEM_PROMPT identical to the copy in supabase/functions/generate-sketch/index.ts.
-import type { WiringRow } from './types';
+import type { Lesson, WiringRow } from './types';
 
 export const MODEL = 'claude-sonnet-5-5';
 
@@ -17,6 +17,7 @@ Rules:
 - If compiler errors are given, fix them. Do not change the program's behaviour.
 - If photos are attached, they show the user's real board, breadboard or parts. Use them to work out what is connected to which pin and write code that matches the actual wiring. If a wire, part or voltage in the photo looks wrong, missing or unsafe, say so in the safety block.
 - Always include a wiring block: a JSON array with one object per physical connection the user must make, in the order they should wire them. Each object has "pin" (the board pin, e.g. "D13", "GPIO4", "GND", "5V"), "part" (what it connects to, e.g. "Red LED anode"), "to" (the full wire path in plain words, including any resistor, e.g. "through a 220 ohm resistor to the LED's long leg; short leg to GND") plus "group" (a short label for the physical part this wire belongs to, e.g. "LED1", "Button", "Servo"; every wire to the same part uses the same group), "kind" (one of: led, resistor, button, sensor, servo, motor, buzzer, display, other) and optionally "note". Use an empty array [] only if nothing needs wiring.
+- If the request says Teaching mode is ON, add one more block after the safety block, exactly as the request describes. Otherwise never add it.
 - Always check the hardware for risks: LEDs without resistors, motors, relays or servos powered or driven straight from a pin, 5V signals into 3.3V boards, shorted pins, too many LEDs for the supply, or pins that are not safe to use on this board. List each real risk in the safety block, one per line, with the fix.
 
 Reply in exactly this format and nothing else:
@@ -52,12 +53,14 @@ export function buildUserMessage(opts: {
   prompt: string;
   currentCode?: string;
   compileErrors?: string;
+  teach?: boolean;
 }): string {
   let msg = `Board: ${opts.boardName} (${opts.fqbn})\n\nRequest: ${opts.prompt.slice(0, 4000)}`;
   if (opts.currentCode)
     msg += `\n\nExisting sketch:\n\`\`\`cpp\n${opts.currentCode.slice(0, 30000)}\n\`\`\``;
   if (opts.compileErrors)
     msg += `\n\nThe sketch above failed to compile with these errors. Fix them:\n${opts.compileErrors.slice(0, 6000)}`;
+  if (opts.teach && !opts.compileErrors) msg += `\n\nTeaching mode is ON. After the safety block, add one more block \`\`\`lesson containing JSON of this shape: {"summary": "one or two sentences on what the program does", "walkthrough": [{"part": "the line or section, e.g. setup()", "explain": "plain-English explanation for a beginner"}], "concepts": [{"term": "e.g. PWM", "meaning": "a one-sentence definition"}], "quiz": [{"q": "a question about this program", "a": "the answer with a short reason"}]}. Use 4 to 8 walkthrough items in program order, 2 to 4 concepts and exactly 3 quiz questions. No jargon without explaining it.`;
   return msg;
 }
 
@@ -78,7 +81,27 @@ export function parseWiring(raw: string): WiringRow[] {
   }
 }
 
-export function parseReply(text: string): { code: string; libraries: string[]; notes: string; safety: string; wiring: WiringRow[] } {
+/** Reads the AI's lesson block (Teaching mode). Anything malformed is dropped. */
+export function parseLesson(raw: string): Lesson | undefined {
+  if (!raw) return undefined;
+  try {
+    const d = JSON.parse(raw);
+    const clip = (v: unknown, n: number) => String(v ?? '').trim().slice(0, n);
+    const list = <T,>(v: unknown, f: (x: any) => T | null, max: number): T[] =>
+      Array.isArray(v) ? v.slice(0, max).map(f).filter((x): x is T => x !== null) : [];
+    const lesson: Lesson = {
+      summary: clip(d?.summary, 600),
+      walkthrough: list(d?.walkthrough, (x) => (x?.part && x?.explain ? { part: clip(x.part, 80), explain: clip(x.explain, 700) } : null), 12),
+      concepts: list(d?.concepts, (x) => (x?.term && x?.meaning ? { term: clip(x.term, 60), meaning: clip(x.meaning, 300) } : null), 6),
+      quiz: list(d?.quiz, (x) => (x?.q && x?.a ? { q: clip(x.q, 300), a: clip(x.a, 400) } : null), 5),
+    };
+    return lesson.walkthrough.length || lesson.quiz.length ? lesson : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function parseReply(text: string): { code: string; libraries: string[]; notes: string; safety: string; wiring: WiringRow[]; lesson?: Lesson } {
   const rawSafety = extractBlock(text, 'safety');
   return {
     safety: /^none\.?$/i.test(rawSafety) ? '' : rawSafety,
@@ -90,5 +113,6 @@ export function parseReply(text: string): { code: string; libraries: string[]; n
       .slice(0, 10),
     notes: extractBlock(text, 'notes'),
     wiring: parseWiring(extractBlock(text, 'wiring')),
+    lesson: parseLesson(extractBlock(text, 'lesson')),
   };
 }

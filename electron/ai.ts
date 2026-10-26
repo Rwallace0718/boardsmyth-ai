@@ -1,4 +1,4 @@
-import type { GenerateRequest, GenerateResult, StatusEvent, WiringRow } from '../shared/types';
+import type { GenerateRequest, GenerateResult, StatusEvent, WiringRow, Lesson } from '../shared/types';
 import { loadConfig } from './config';
 import { accessToken } from './auth';
 import { compile, ensureCore, ensureLibraries } from './arduino';
@@ -13,6 +13,7 @@ interface EdgeResponse {
   notes?: string;
   safety?: string;
   wiring?: WiringRow[];
+  lesson?: Lesson;
   error?: string;
   code_name?: string;
 }
@@ -81,6 +82,7 @@ async function callClaudeDirect(body: Record<string, unknown>): Promise<EdgeResp
             prompt: String(body.prompt ?? ''),
             currentCode: body.currentCode ? String(body.currentCode) : undefined,
             compileErrors: body.compileErrors ? String(body.compileErrors) : undefined,
+            teach: body.teach === true,
           })),
         },
       ],
@@ -121,6 +123,7 @@ export async function generateAndVerify(
   let notes = '';
   let safety = '';
   let wiring: WiringRow[] = [];
+  let lesson: Lesson | undefined;
   let lastErrors = '';
 
   // Install the board core up front so the first compile is not slow mid-loop.
@@ -142,6 +145,7 @@ export async function generateAndVerify(
       currentCode: attempt === 1 ? req.currentCode : code,
       compileErrors: attempt === 1 ? undefined : lastErrors,
       images: attempt === 1 ? req.images : undefined,
+      teach: attempt === 1 ? req.teach === true : false,
     });
 
     if (resp.error || !resp.code) {
@@ -159,6 +163,7 @@ export async function generateAndVerify(
     notes = resp.notes ?? notes;
     safety = resp.safety || safety;
     wiring = resp.wiring?.length ? resp.wiring : wiring;
+    lesson = resp.lesson ?? lesson;
 
     const libs = await ensureLibraries(resp.libraries ?? [], (stage, message) =>
       emit({ stage, message })
@@ -171,7 +176,7 @@ export async function generateAndVerify(
     const built = await compile(code, req.fqbn, (stage, message) => emit({ stage, message }));
     if (built.ok) {
       emit({ stage: 'done', message: 'Compiled successfully.' });
-      return { ok: true, code, notes, safety, wiring, attempts: attempt };
+      return { ok: true, code, notes, safety, wiring, lesson, attempts: attempt };
     }
     lastErrors = built.output.slice(-4000);
   }

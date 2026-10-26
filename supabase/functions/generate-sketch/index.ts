@@ -35,6 +35,7 @@ Rules:
 - If compiler errors are given, fix them. Do not change the program's behaviour.
 - If photos are attached, they show the user's real board, breadboard or parts. Use them to work out what is connected to which pin and write code that matches the actual wiring. If a wire, part or voltage in the photo looks wrong, missing or unsafe, say so in the safety block.
 - Always include a wiring block: a JSON array with one object per physical connection the user must make, in the order they should wire them. Each object has "pin" (the board pin, e.g. "D13", "GPIO4", "GND", "5V"), "part" (what it connects to, e.g. "Red LED anode"), "to" (the full wire path in plain words, including any resistor, e.g. "through a 220 ohm resistor to the LED's long leg; short leg to GND") plus "group" (a short label for the physical part this wire belongs to, e.g. "LED1", "Button", "Servo"; every wire to the same part uses the same group), "kind" (one of: led, resistor, button, sensor, servo, motor, buzzer, display, other) and optionally "note". Use an empty array [] only if nothing needs wiring.
+- If the request says Teaching mode is ON, add one more block after the safety block, exactly as the request describes. Otherwise never add it.
 - Always check the hardware for risks: LEDs without resistors, motors, relays or servos powered or driven straight from a pin, 5V signals into 3.3V boards, shorted pins, too many LEDs for the supply, or pins that are not safe to use on this board. List each real risk in the safety block, one per line, with the fix.
 
 Reply in exactly this format and nothing else:
@@ -72,6 +73,26 @@ function parseWiring(raw: string) {
       .filter((r) => r.pin && (r.part || r.to));
   } catch {
     return [];
+  }
+}
+
+function parseLesson(raw: string) {
+  if (!raw) return undefined;
+  try {
+    const d = JSON.parse(raw);
+    const clip = (v: unknown, n: number) => String(v ?? '').trim().slice(0, n);
+    // deno-lint-ignore no-explicit-any
+    const list = (v: unknown, f: (x: any) => unknown, max: number) =>
+      Array.isArray(v) ? v.slice(0, max).map(f).filter((x) => x !== null) : [];
+    const lesson = {
+      summary: clip(d?.summary, 600),
+      walkthrough: list(d?.walkthrough, (x) => (x?.part && x?.explain ? { part: clip(x.part, 80), explain: clip(x.explain, 700) } : null), 12),
+      concepts: list(d?.concepts, (x) => (x?.term && x?.meaning ? { term: clip(x.term, 60), meaning: clip(x.meaning, 300) } : null), 6),
+      quiz: list(d?.quiz, (x) => (x?.q && x?.a ? { q: clip(x.q, 300), a: clip(x.a, 400) } : null), 5),
+    };
+    return lesson.walkthrough.length || lesson.quiz.length ? lesson : undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -156,6 +177,7 @@ Deno.serve(async (req) => {
   // 5. Ask Claude
   let userMessage = `Board: ${boardName} (${fqbn})\n\nRequest: ${prompt}`;
   if (currentCode) userMessage += `\n\nExisting sketch:\n\`\`\`cpp\n${currentCode}\n\`\`\``;
+  if (body.teach === true && !compileErrors) userMessage += `\n\nTeaching mode is ON. After the safety block, add one more block \`\`\`lesson containing JSON of this shape: {"summary": "one or two sentences on what the program does", "walkthrough": [{"part": "the line or section, e.g. setup()", "explain": "plain-English explanation for a beginner"}], "concepts": [{"term": "e.g. PWM", "meaning": "a one-sentence definition"}], "quiz": [{"q": "a question about this program", "a": "the answer with a short reason"}]}. Use 4 to 8 walkthrough items in program order, 2 to 4 concepts and exactly 3 quiz questions. No jargon without explaining it.`;
   if (compileErrors) userMessage += `\n\nThe sketch above failed to compile with these errors. Fix them:\n${compileErrors}`;
 
   const apiRes = await fetch('https://api.anthropic.com/v1/messages', {
@@ -205,5 +227,5 @@ Deno.serve(async (req) => {
 
   const rawSafety = extractBlock(text, 'safety');
   const safety = /^none\.?$/i.test(rawSafety) ? '' : rawSafety;
-  return json({ code, libraries, notes: extractBlock(text, 'notes'), safety, wiring: parseWiring(extractBlock(text, 'wiring')) });
+  return json({ code, libraries, notes: extractBlock(text, 'notes'), safety, wiring: parseWiring(extractBlock(text, 'wiring')), lesson: parseLesson(extractBlock(text, 'lesson')) });
 });

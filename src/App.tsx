@@ -7,6 +7,7 @@ import type {
   DetectedPort,
   HistoryItem,
   WiringRow,
+  Lesson,
   GenerateResult,
   PhoneSession,
   StatusEvent,
@@ -17,6 +18,7 @@ import TermsGate from './TermsGate';
 import BoardPicker from './BoardPicker';
 import WiringPanel from './WiringPanel';
 import ProjectLibrary from './ProjectLibrary';
+import LessonPanel from './LessonPanel';
 
 const STARTER = `// Describe what you want in the box on the left, then press Generate.
 void setup() {
@@ -73,9 +75,25 @@ export default function App() {
   const [logDetail, setLogDetail] = useState<{ for: string; text: string } | null>(null);
   const [showDetail, setShowDetail] = useState(false);
   const [monitorOn, setMonitorOn] = useState(false);
-  const [tab, setTab] = useState<'log' | 'serial' | 'wiring'>('log');
+  const [tab, setTab] = useState<'log' | 'serial' | 'wiring' | 'lesson'>('log');
+  const [lesson, setLesson] = useState<Lesson | undefined>();
+  const [teach, setTeach] = useState(() => {
+    try {
+      return localStorage.getItem('teach') === '1';
+    } catch {
+      return false;
+    }
+  });
   const [wiring, setWiring] = useState<WiringRow[]>([]);
   const [showProjects, setShowProjects] = useState(false);
+  const lastGoal = useRef('');
+  const [selfCheck, setSelfCheck] = useState(() => {
+    try {
+      return localStorage.getItem('selfCheck') === '1';
+    } catch {
+      return false;
+    }
+  });
   const [serial, setSerial] = useState('');
   const serialRef = useRef<HTMLPreElement>(null);
   const userPickedBoard = useRef(false);
@@ -313,9 +331,10 @@ export default function App() {
     setBaseFqbn(b.fqbn);
   }
 
-  async function generate(override?: { prompt: string; shown: string }) {
+  async function generate(override?: { prompt: string; shown: string }): Promise<GenerateResult | undefined> {
     const request = (override?.prompt ?? prompt).trim();
-    if (!request || working) return;
+    if (!request || working) return undefined;
+    if (!override) lastGoal.current = request;
     const photos = override ? [] : images;
     if (!override) {
       setPrompt('');
@@ -327,16 +346,18 @@ export default function App() {
       { role: 'you', text: override?.shown ?? request, images: photos.length ? photos : undefined },
     ]);
 
-    const hasUserCode = code.trim() !== '' && code !== STARTER;
-    if (hasUserCode) pushHistory(`Before: ${(override?.shown ?? request).slice(0, 40)}`, code);
+    const cur = codeRef.current;
+    const hasUserCode = cur.trim() !== '' && cur !== STARTER;
+    if (hasUserCode) pushHistory(`Before: ${(override?.shown ?? request).slice(0, 40)}`, cur);
     let res: GenerateResult;
     try {
       res = await window.api.generate({
         prompt: request,
         fqbn,
         boardName,
-        currentCode: hasUserCode ? code : undefined,
+        currentCode: hasUserCode ? cur : undefined,
         images: photos.length ? photos : undefined,
+        teach,
       });
     } catch (e) {
       // Never leave the app stuck "busy" (that locks the prompt box) if the request itself blows up.
@@ -347,7 +368,8 @@ export default function App() {
     setLastSafety(res.safety ?? '');
     if (res.ok) {
       setWiring(res.wiring ?? []);
-      if (res.wiring?.length) setTab('wiring');
+      setLesson(res.lesson);
+      setTab(res.lesson ? 'lesson' : res.wiring?.length ? 'wiring' : tab);
       setChat((c) => [
         ...c,
         { role: 'ai', text: res.notes || 'Done. The program compiled successfully.' },
@@ -362,6 +384,7 @@ export default function App() {
     setBusy(false);
     setStatus(null);
     void refreshAuth();
+    return res;
   }
 
   async function runCompile() {
@@ -398,6 +421,7 @@ export default function App() {
     setBusy(true);
     setTab('log');
     setMonitorOn(false);
+    let uploaded = false;
     try {
       const res = await window.api.upload(code, fqbn, port);
       if (res.ok) {
@@ -405,6 +429,7 @@ export default function App() {
         setLog(done);
         setLogDetail({ for: done, text: res.output });
         setShowDetail(false);
+        uploaded = true;
       } else {
         setLog(res.output);
       }
@@ -414,6 +439,79 @@ export default function App() {
       setBusy(false);
       setStatus(null);
     }
+    if (uploaded && selfCheck) await runSelfCheck(1);
+  }
+
+  /** Listens to the board for a few seconds after an upload and asks the AI whether it is doing what was asked. */
+  async function runSelfCheck(round: number) {
+    const sent = codeRef.current;
+    const begin = /Serial\.begin\s*\(\s*(\d+)/.exec(sent);
+    if (!begin) {
+      setLog((l) => `${l}\n\nSelf-check skipped: this program never calls Serial.begin, so there is nothing to listen to.`);
+      return;
+    }
+    const baud = Number(begin[1]) || 9600;
+    setTab('serial');
+    setSerial('');
+    setLog((l) => `${l}\n\nListening to the board for 8 seconds…`);
+    let heard = '';
+    const off = window.api.monitor.onData((chunk) => (heard += chunk));
+    try {
+      await new Promise((r) => setTimeout(r, 1500)); // let the board restart after the upload
+      await window.api.monitor.start(port, baud);
+      setMonitorOn(true);
+      await new Promise((r) => setTimeout(r, 8000));
+    } finally {
+      off();
+      await window.api.monitor.stop().catch(() => undefined);
+      setMonitorOn(false);
+    }
+
+    if (/(could not|cannot|can't|busy|denied|no such|not found)/i.test(heard) && heard.length < 400) {
+      setLog(
+        (l) =>
+          `${l}\n\nCould not open the serial port after the upload. Some boards change port when they restart. Pick the port again and press Start on the Serial monitor tab.`
+      );
+      return;
+    }
+
+    const goal = lastGoal.current || 'what the program comments say it should do';
+    const res = await generate({
+      shown: `Checking what the board printed after upload (check ${round} of 2)`,
+      prompt:
+        `The program above was just uploaded and ran for 8 seconds. What I asked for: ${goal}\n\n` +
+        `This is everything it printed on the serial monitor (${baud} baud):\n` +
+        (heard.trim() ? heard.slice(-2500) : '(nothing was printed)') +
+        `\n\nDecide whether this output shows the program doing what I asked. ` +
+        `If it does, return the code EXACTLY unchanged and start the notes with "Check passed:" and one line on what you saw. ` +
+        `If it does not, or nothing printed, fix the code and start the notes with "Problem found:" and say what was wrong and what to check on the hardware.`,
+    });
+
+    if (!res?.ok || !res.code || res.code === sent) return;
+    if (round >= 2) {
+      setChat((c) => [...c, { role: 'system', text: 'The AI made another fix. Press Upload when you are ready to try it.' }]);
+      return;
+    }
+    if (window.confirm('The AI found a problem and fixed the program. Upload the fix and check again?')) {
+      await runUploadFix(round + 1);
+    }
+  }
+
+  async function runUploadFix(nextRound: number) {
+    setBusy(true);
+    setTab('log');
+    let uploaded = false;
+    try {
+      const res = await window.api.upload(codeRef.current, fqbn, port);
+      setLog(res.ok ? `Uploaded the fix to ${port}.` : res.output);
+      uploaded = res.ok;
+    } catch (e) {
+      setLog(`Upload failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+      setStatus(null);
+    }
+    if (uploaded) await runSelfCheck(nextRound);
   }
 
   async function toggleMonitor() {
@@ -519,6 +617,24 @@ export default function App() {
         <button className="primary" onClick={runUpload} disabled={working}>
           Upload
         </button>
+        <label
+          className="teach-toggle small"
+          title="After uploading, listen to the board for 8 seconds and let the AI check it works. Uses 1 generation per check."
+        >
+          <input
+            type="checkbox"
+            checked={selfCheck}
+            onChange={(e) => {
+              setSelfCheck(e.target.checked);
+              try {
+                localStorage.setItem('selfCheck', e.target.checked ? '1' : '0');
+              } catch {
+                /* ignore */
+              }
+            }}
+          />
+          Check it works
+        </label>
         <button
           title="Save this program as a .ino file (Ctrl+S)"
           onClick={() => window.api.file.save(code, filePath, false).then((r) => {
@@ -749,6 +865,21 @@ export default function App() {
               }}
               rows={3}
             />
+            <label className="teach-toggle" title="The AI also explains the code line by line and asks you three questions">
+              <input
+                type="checkbox"
+                checked={teach}
+                onChange={(e) => {
+                  setTeach(e.target.checked);
+                  try {
+                    localStorage.setItem('teach', e.target.checked ? '1' : '0');
+                  } catch {
+                    /* ignore */
+                  }
+                }}
+              />
+              Teaching mode: explain the code and quiz me
+            </label>
             <div className="chat-buttons">
               <button className="primary" onClick={() => void generate()} disabled={working || outOfFree || needsKey}>
                 {busy ? 'Working…' : preparing ? 'Preparing board…' : 'Generate'}
@@ -825,6 +956,9 @@ export default function App() {
               <button className={tab === 'wiring' ? 'active' : ''} onClick={() => setTab('wiring')}>
                 Wiring{wiring.length ? ` (${wiring.length})` : ''}
               </button>
+              <button className={tab === 'lesson' ? 'active' : ''} onClick={() => setTab('lesson')}>
+                Lesson
+              </button>
               <button className={tab === 'serial' ? 'active' : ''} onClick={() => setTab('serial')}>
                 Serial monitor
               </button>
@@ -853,7 +987,9 @@ export default function App() {
                 </>
               )}
             </div>
-            {tab === 'wiring' ? (
+            {tab === 'lesson' ? (
+              <LessonPanel lesson={lesson} />
+            ) : tab === 'wiring' ? (
               <WiringPanel rows={wiring} boardName={boardName} />
             ) : tab === 'log' ? (
               <pre className="output">
