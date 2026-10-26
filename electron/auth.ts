@@ -3,7 +3,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import WebSocket from 'ws';
 import * as fs from 'fs';
 import * as path from 'path';
-import type { AuthResult, AuthState } from '../shared/types';
+import type { AuthResult, AuthState, ClassReply } from '../shared/types';
 import { loadConfig } from './config';
 import { hasClaudeKey } from './keys';
 
@@ -31,6 +31,27 @@ async function recordAcceptance(source: 'signup' | 'gate' | 'signin_backfill'): 
   }
 }
 let backfillTried = false;
+
+/** Calls the "classes" server function (Schools plan) as the signed-in user. */
+export async function callClasses(body: Record<string, unknown>): Promise<ClassReply> {
+  try {
+    const cfg = loadConfig();
+    const { data } = await supabase().auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) return { error: 'Please sign in again.' };
+    const res = await fetch(`${cfg.supabaseUrl}/functions/v1/classes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, apikey: cfg.supabaseAnonKey },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(20_000),
+    });
+    const out = (await res.json().catch(() => ({}))) as ClassReply;
+    if (!res.ok && !out.error) out.error = 'The classroom service is not available right now.';
+    return out;
+  } catch {
+    return { error: 'Could not reach the classroom service. Check your internet connection.' };
+  }
+}
 
 /** Session storage on disk, encrypted with the OS keychain when available. */
 function storageFile(): string {
@@ -122,7 +143,22 @@ export async function getState(): Promise<AuthState> {
     ['active', 'trialing'].includes(sub.status) &&
     (!sub.current_period_end || new Date(sub.current_period_end).getTime() > Date.now());
 
-  const plan: 'hosted' | 'byok' = sub?.plan === 'hosted' ? 'hosted' : 'byok';
+  let plan: 'hosted' | 'byok' = sub?.plan === 'hosted' || sub?.plan === 'school' ? 'hosted' : 'byok';
+
+  // Schools plan: a teacher with an active plan, or a student in that teacher's class, gets the hosted AI.
+  let school: 'teacher' | 'student' | undefined;
+  let className: string | undefined;
+  const { data: access } = await sb.rpc('my_class_access');
+  const row = Array.isArray(access) ? access[0] : undefined;
+  if (row && row.role === 'teacher') {
+    school = 'teacher';
+    className = row.class_name;
+  } else if (row && row.role === 'student' && row.active && !active) {
+    school = 'student';
+    className = row.class_name;
+  }
+  const viaClass = school === 'student';
+  if (viaClass) plan = 'hosted';
 
   // Monthly usage is stored under the first day of the (UTC) month.
   const monthKey = new Date().toISOString().slice(0, 7) + '-01';
@@ -142,10 +178,12 @@ export async function getState(): Promise<AuthState> {
   return {
     signedIn: true,
     email: user.email ?? undefined,
-    subscribed: active,
+    subscribed: active || viaClass,
     plan,
+    school,
+    className,
     usageMonth: usage?.count ?? 0,
-    monthlyLimit: 300,
+    monthlyLimit: viaClass ? 100 : 300,
     hasOwnKey: hasClaudeKey(),
     freeLimit: 5,
     termsAccepted,

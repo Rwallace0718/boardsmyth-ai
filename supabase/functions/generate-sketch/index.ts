@@ -6,6 +6,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const MODEL = Deno.env.get('CLAUDE_MODEL') ?? 'claude-sonnet-5-5';
 const MONTHLY_LIMIT = Number(Deno.env.get('MONTHLY_LIMIT') ?? '300');
 const FREE_LIMIT = Number(Deno.env.get('FREE_LIMIT') ?? '5');
+const STUDENT_LIMIT = Number(Deno.env.get('STUDENT_LIMIT') ?? '100');
 const MAX_PROMPT_CHARS = 4000;
 const MAX_IMAGES = 3;
 const MAX_IMAGE_CHARS = 2_000_000;
@@ -157,13 +158,29 @@ Deno.serve(async (req) => {
     ['active', 'trialing'].includes(sub.status) &&
     (!sub.current_period_end || new Date(sub.current_period_end).getTime() > Date.now());
 
+  // Students in a class whose teacher has an active Schools plan get hosted access with a smaller monthly cap.
+  let viaClass = false;
+  if (!active) {
+    // deno-lint-ignore no-explicit-any
+    const { data: m } = await admin.from('class_members').select('classes(teacher_id)').eq('user_id', user.id).maybeSingle();
+    // deno-lint-ignore no-explicit-any
+    const teacherId = (m as any)?.classes?.teacher_id as string | undefined;
+    if (teacherId) {
+      const { data: ts } = await admin.from('subscriptions').select('status, current_period_end, plan').eq('user_id', teacherId).maybeSingle();
+      viaClass =
+        !!ts && ts.plan === 'school' && ['active', 'trialing'].includes(ts.status) &&
+        (!ts.current_period_end || new Date(ts.current_period_end).getTime() > Date.now());
+    }
+  }
+  const paid = active || viaClass;
+
   // Bring-your-own-key subscribers call Claude directly from the app; they must not use our key.
-  if (active && sub?.plan !== 'hosted') {
+  if (active && sub?.plan !== 'hosted' && sub?.plan !== 'school') {
     return json({ error: 'Your plan uses your own Claude API key. Add it in Settings.', code_name: 'plan' }, 403);
   }
 
   // Everyone else is on the free plan: a few hosted generations a month.
-  const limit = active ? MONTHLY_LIMIT : FREE_LIMIT;
+  const limit = viaClass ? STUDENT_LIMIT : active ? MONTHLY_LIMIT : FREE_LIMIT;
 
   // 3. Validate input
   let body: Record<string, unknown>;
@@ -197,8 +214,8 @@ Deno.serve(async (req) => {
     });
     if (usageErr) return json({ error: 'Could not check usage. Try again.' }, 500);
     if (!allowed) {
-      return active
-        ? json({ error: `Monthly limit of ${MONTHLY_LIMIT} generations reached. It resets on the 1st.` }, 429)
+      return paid
+        ? json({ error: `Monthly limit of ${limit} generations reached. It resets on the 1st.` }, 429)
         : json({ error: `You have used your ${FREE_LIMIT} free generations this month. Subscribe to keep going.`, code_name: 'free_limit' }, 402);
     }
   }

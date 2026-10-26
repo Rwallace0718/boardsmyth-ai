@@ -123,12 +123,46 @@ export interface StatusEvent {
   message: string;
 }
 
+export interface ClassMember {
+  userId: string;
+  name: string;
+  joined: string;
+}
+
+export interface ClassProject {
+  id: string;
+  author: string;
+  title: string;
+  boardName?: string;
+  fqbn?: string;
+  code: string;
+  notes?: string;
+  created: string;
+  mine: boolean;
+}
+
+/** Reply of the "classes" server function. Which fields are present depends on the action. */
+export interface ClassReply {
+  ok?: boolean;
+  error?: string;
+  role?: 'teacher' | 'student' | 'none';
+  className?: string;
+  students?: number;
+  seats?: number;
+  joinCode?: string;
+  members?: ClassMember[];
+  projects?: ClassProject[];
+}
+
 export interface AuthState {
   signedIn: boolean;
   email?: string;
   subscribed?: boolean;
   /** 'hosted' = our AI key; 'byok' = the user's own Claude key. */
   plan?: 'hosted' | 'byok';
+  /** Set when hosted AI comes from the Schools plan: the teacher, or a student in a teacher's class. */
+  school?: 'teacher' | 'student';
+  className?: string;
   /** Generations used this month (hosted plan). */
   usageMonth?: number;
   monthlyLimit?: number;
@@ -205,6 +239,10 @@ export interface Api {
     get(): Promise<LocalAiSettings>;
     set(s: LocalAiSettings): Promise<{ ok: boolean; error?: string }>;
     test(url: string): Promise<{ ok: boolean; models: string[]; error?: string }>;
+  };
+  classes: {
+    /** me | create | join | leave | gallery | share | unshare | remove | newcode (see the classes server function). */
+    call(body: Record<string, unknown>): Promise<ClassReply>;
   };
   libraries: {
     /** Searches the Arduino Library Manager. Empty query returns nothing. */

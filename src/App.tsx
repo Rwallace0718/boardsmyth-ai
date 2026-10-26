@@ -24,6 +24,7 @@ import LessonPanel from './LessonPanel';
 import PartsPanel from './PartsPanel';
 import PinsPanel from './PinsPanel';
 import LibraryPanel from './LibraryPanel';
+import ClassPanel from './ClassPanel';
 import { factsForPrompt } from '../shared/boardFacts';
 
 const STARTER = `// Describe what you want in the box on the left, then press Generate.
@@ -105,6 +106,7 @@ export default function App() {
   });
   const [wiring, setWiring] = useState<WiringRow[]>([]);
   const [showProjects, setShowProjects] = useState(false);
+  const [showClass, setShowClass] = useState(false);
   const [ota, setOta] = useState(() => {
     try {
       return localStorage.getItem('ota') === '1';
@@ -698,6 +700,23 @@ export default function App() {
 
   return (
     <div className="app">
+      {showClass && (
+        <ClassPanel
+          currentCode={code}
+          boardName={boardName}
+          fqbn={fqbn}
+          hasProgram={code.trim() !== '' && code !== STARTER}
+          onChanged={refreshAuth}
+          onClose={() => setShowClass(false)}
+          onOpen={(p) => {
+            if (code !== savedCode.current && !window.confirm('You have changes that are not saved. Continue and discard them?')) return;
+            setCode(p.code);
+            savedCode.current = p.code;
+            setShowClass(false);
+            setChat((c) => [...c, { role: 'system', text: `Opened "${p.title}" by ${p.author} from the class gallery.` }]);
+          }}
+        />
+      )}
       {showProjects && (
         <ProjectLibrary
           boardName={boardName}
@@ -806,7 +825,10 @@ export default function App() {
             Claude key
           </button>
         )}
-        {auth.subscribed && (
+        <button className="link" title="Join a class, or manage yours (Schools plan)" onClick={() => setShowClass(true)}>
+          Classroom{auth.school ? ` (${auth.school})` : ''}
+        </button>
+        {auth.subscribed && auth.school !== 'student' && (
           <button
             className="link"
             onClick={async () => {

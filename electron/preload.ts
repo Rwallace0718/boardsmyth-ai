@@ -21,6 +21,9 @@ const api: Api = {
     details: (fqbn) => ipcRenderer.invoke('boards:details', fqbn),
     detect: () => ipcRenderer.invoke('boards:detect'),
   },
+  classes: {
+    call: (body) => ipcRenderer.invoke('classes:call', body),
+  },
   localAi: {
     get: () => ipcRenderer.invoke('localAi:get'),
     set: (s) => ipcRenderer.invoke('localAi:set', s),

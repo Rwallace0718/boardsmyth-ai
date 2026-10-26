@@ -73,9 +73,11 @@ Deno.serve(async (req) => {
     return new Response('missing user_id', { status: 200 }); // 200 so Paddle does not retry forever
   }
 
-  // Plan comes from the price's internal description ('hosted' or 'byok'). Unknown -> 'byok' (never grants our key).
+  // Plan comes from the price's internal description ('hosted', 'school' or 'byok'). Unknown -> 'byok' (never grants our key).
   const priceLabel = String(data.items?.[0]?.price?.description ?? '').trim().toLowerCase();
-  const plan = priceLabel === 'hosted' ? 'hosted' : 'byok';
+  const plan = priceLabel === 'hosted' ? 'hosted' : priceLabel === 'school' ? 'school' : 'byok';
+  // Schools plan is sold per seat: the quantity on the subscription is the number of students allowed in the class.
+  const seats = plan === 'school' ? Math.max(0, Math.min(5000, Number(data.items?.[0]?.quantity) || 0)) : 0;
 
   const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
@@ -85,6 +87,7 @@ Deno.serve(async (req) => {
       paddle_subscription_id: data.id,
       paddle_customer_id: data.customer_id,
       plan,
+      seats,
       status: data.status, // active | trialing | past_due | paused | canceled
       current_period_end: data.current_billing_period?.ends_at ?? null,
       management_cancel_url: data.management_urls?.cancel ?? null,
