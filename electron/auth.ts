@@ -10,6 +10,28 @@ import { hasClaudeKey } from './keys';
 /** Change this date whenever the Terms of Service or Privacy Policy change in a way people must agree to again. */
 export const TERMS_VERSION = '2026-10-26';
 
+/**
+ * Asks our server to log that this signed-in person accepted the current Terms, with the IP address the server sees.
+ * Best effort: it never blocks signing in. `signin_backfill` covers people whose acceptance could not be logged at the time.
+ */
+async function recordAcceptance(source: 'signup' | 'gate' | 'signin_backfill'): Promise<void> {
+  try {
+    const cfg = loadConfig();
+    const { data } = await supabase().auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) return;
+    await fetch(`${cfg.supabaseUrl}/functions/v1/accept-terms`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, apikey: cfg.supabaseAnonKey },
+      body: JSON.stringify({ terms_version: TERMS_VERSION, source }),
+      signal: AbortSignal.timeout(15_000),
+    });
+  } catch {
+    /* try again next time the app starts */
+  }
+}
+let backfillTried = false;
+
 /** Session storage on disk, encrypted with the OS keychain when available. */
 function storageFile(): string {
   return path.join(app.getPath('userData'), 'session.bin');
@@ -111,6 +133,12 @@ export async function getState(): Promise<AuthState> {
     .eq('day', monthKey)
     .maybeSingle();
 
+  const termsAccepted = user.user_metadata?.terms_version === TERMS_VERSION;
+  if (termsAccepted && user.user_metadata?.terms_logged_version !== TERMS_VERSION && !backfillTried) {
+    backfillTried = true;
+    void recordAcceptance('signin_backfill');
+  }
+
   return {
     signedIn: true,
     email: user.email ?? undefined,
@@ -120,7 +148,7 @@ export async function getState(): Promise<AuthState> {
     monthlyLimit: 300,
     hasOwnKey: hasClaudeKey(),
     freeLimit: 5,
-    termsAccepted: user.user_metadata?.terms_version === TERMS_VERSION,
+    termsAccepted,
   };
 }
 
@@ -144,6 +172,7 @@ export async function signUp(email: string, password: string): Promise<AuthResul
       error: 'Account created. Check your email to confirm it, then sign in.',
     };
   }
+  await recordAcceptance('signup');
   return { ok: true, state: await getState() };
 }
 
@@ -153,6 +182,7 @@ export async function acceptTerms(): Promise<AuthResult> {
     data: { terms_version: TERMS_VERSION, terms_accepted_at: new Date().toISOString() },
   });
   if (error) return { ok: false, error: error.message };
+  await recordAcceptance('gate');
   return { ok: true, state: await getState() };
 }
 
