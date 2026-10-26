@@ -116,6 +116,18 @@ export default function App() {
   });
   const [localAi, setLocalAi] = useState<LocalAiSettings>({ enabled: false, url: 'http://localhost:11434', model: '' });
   const [localPanel, setLocalPanel] = useState(false);
+  // Local AI is an advanced feature: hidden unless it is already on, or revealed with Ctrl+Shift+L.
+  const [showLocalBtn, setShowLocalBtn] = useState(false);
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'l') {
+        setShowLocalBtn(true);
+        setLocalPanel((v) => !v);
+      }
+    };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, []);
   const [localModels, setLocalModels] = useState<string[]>([]);
   const [localMsg, setLocalMsg] = useState('');
   useEffect(() => {
@@ -789,12 +801,14 @@ export default function App() {
         >
           Save
         </button>
+        {(showLocalBtn || localAi.enabled) && (
         <button
           title="Use a free AI that runs on this computer (Ollama) instead of the hosted AI"
           onClick={() => setLocalPanel((v) => !v)}
         >
           Local AI: {localOn ? 'on' : 'off'}
         </button>
+        )}
         <button
           title="Open a saved program (Ctrl+O)"
           disabled={working}
