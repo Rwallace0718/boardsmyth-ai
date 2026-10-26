@@ -61,8 +61,6 @@ jobs:
     if: ${{ github.event_name == 'push' || inputs.build_mac }}
     runs-on: macos-latest   # Apple Silicon
     env:
-      CSC_LINK: ${{ secrets.MAC_CERT_P12_BASE64 }}
-      CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
       APPLE_ID: ${{ secrets.APPLE_ID }}
       APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -80,21 +78,24 @@ jobs:
           {"supabaseUrl":"${{ secrets.SUPABASE_URL }}","supabaseAnonKey":"${{ secrets.SUPABASE_ANON_KEY }}","checkoutUrl":"${{ secrets.CHECKOUT_URL }}"}
           JSON
       - run: npm ci
-      - name: Check certificate secrets (prints sizes only, never values)
+      - name: Import signing certificate into a build keychain
+        env:
+          CERT_P12_BASE64: ${{ secrets.MAC_CERT_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
         run: |
-          echo "P12 secret length: ${#CSC_LINK}"
-          echo "Password length: ${#CSC_KEY_PASSWORD}"
-          printf %s "$CSC_LINK" | base64 --decode > /tmp/cert.p12
-          echo "Decoded file size: $(wc -c < /tmp/cert.p12) bytes"
-          security create-keychain -p tmp /tmp/check.keychain
-          if security import /tmp/cert.p12 -k /tmp/check.keychain -P "$CSC_KEY_PASSWORD" -T /usr/bin/codesign; then
-            echo "CERTIFICATE IMPORT OK"
-          else
-            echo "CERTIFICATE IMPORT FAILED"
-          fi
-          rm -f /tmp/cert.p12
-          security delete-keychain /tmp/check.keychain || true
-        continue-on-error: true
+          KC="$RUNNER_TEMP/build.keychain-db"
+          KCPW="$(uuidgen)"
+          printf %s "$CERT_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KCPW" "$KC"
+          security set-keychain-settings -lut 21600 "$KC"
+          security unlock-keychain -p "$KCPW" "$KC"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KC" -P "$CERT_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KCPW" "$KC"
+          security list-keychains -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
+          security default-keychain -s "$KC"
+          rm -f "$RUNNER_TEMP/cert.p12"
+          echo "Signing identities available:"
+          security find-identity -v -p codesigning "$KC" | sed -E 's/[0-9A-F]{40}/<hash>/'
       - name: Build, sign and notarize
         run: npm run dist:mac
       - name: Upload to Supabase
