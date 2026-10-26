@@ -48,6 +48,9 @@ export interface WiringRow {
   part: string;
   to: string;
   note?: string;
+  /** The physical part this wire belongs to, e.g. "LED1". */
+  group?: string;
+  kind?: string;
 }
 
 export interface GenerateResult {
