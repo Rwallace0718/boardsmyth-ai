@@ -153,8 +153,23 @@ jobs:
           done
           echo "Signing identities available:"
           security find-identity -v -p codesigning "$KC" | sed -E 's/[0-9A-F]{40}/<hash>/'
+      - name: Check Apple notarization secrets
+        run: |
+          missing=""
+          [ -z "$APPLE_ID" ] && missing="$missing APPLE_ID"
+          [ -z "$APPLE_APP_SPECIFIC_PASSWORD" ] && missing="$missing APPLE_APP_SPECIFIC_PASSWORD"
+          [ -z "$APPLE_TEAM_ID" ] && missing="$missing APPLE_TEAM_ID"
+          if [ -n "$missing" ]; then
+            echo "::error::These GitHub secrets are empty or missing:$missing. Without them the Mac app is not notarized and macOS refuses to open it. Add them and run again."
+            exit 1
+          fi
       - name: Build, sign and notarize
         run: npm run dist:mac
+      - name: Verify the app is notarized (the build stops here if not)
+        run: |
+          APP="release/mac-arm64/BoardSmyth AI.app"
+          spctl --assess --type execute --verbose=4 "$APP"
+          xcrun stapler validate "$APP"
       - name: Upload to Supabase
         env:
           NOTES: ${{ inputs.notes }}
