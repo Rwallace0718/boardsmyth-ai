@@ -55,6 +55,15 @@ export interface WiringRow {
   kind?: string;
 }
 
+export interface PartItem {
+  name: string;
+  qty: number;
+  spec?: string;
+  note?: string;
+  /** True for nice-to-have items. */
+  optional?: boolean;
+}
+
 export interface Lesson {
   summary: string;
   walkthrough: { part: string; explain: string }[];
@@ -70,6 +79,8 @@ export interface GenerateResult {
   safety?: string;
   /** How to wire the parts to the board, in order. */
   wiring?: WiringRow[];
+  /** Everything the user needs to buy or gather to build this. */
+  parts?: PartItem[];
   /** Present when Teaching mode was on. */
   lesson?: Lesson;
   attempts: number;
@@ -136,6 +147,9 @@ export interface Draft {
   code: string;
   fqbn: string;
   history?: HistoryItem[];
+  wiring?: WiringRow[];
+  parts?: PartItem[];
+  lesson?: Lesson;
 }
 
 export interface PhoneSession {

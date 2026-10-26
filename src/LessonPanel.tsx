@@ -2,13 +2,33 @@ import { useState } from 'react';
 import type { Lesson } from '../shared/types';
 
 /** Teaching mode: plain-English walkthrough, key terms and self-check questions. */
-export default function LessonPanel({ lesson }: { lesson?: Lesson }) {
+export default function LessonPanel({
+  lesson,
+  teach,
+  onExplain,
+  canExplain,
+}: {
+  lesson?: Lesson;
+  teach: boolean;
+  onExplain: () => void;
+  canExplain: boolean;
+}) {
   const [open, setOpen] = useState<Record<number, boolean>>({});
   if (!lesson) {
     return (
       <div className="wiring-empty muted">
-        Turn on <strong>Teaching mode</strong> under the prompt box, then press Generate. You get a walkthrough of the code, the key terms, and three
-        questions to check what you learned.
+        <p>
+          {teach
+            ? 'Teaching mode is on. The lesson for your next program shows here after you press Generate.'
+            : 'Turn on Teaching mode under the prompt box, then press Generate, to get a walkthrough, the key terms and three questions.'}
+        </p>
+        <p>
+          Want a lesson on the program that is in the editor now?{' '}
+          <button className="link-btn" disabled={!canExplain} onClick={onExplain}>
+            Explain this program
+          </button>{' '}
+          (uses 1 generation, the program is not changed).
+        </p>
       </div>
     );
   }

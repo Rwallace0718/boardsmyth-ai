@@ -1,6 +1,6 @@
 // Prompt and reply parsing shared by the app (bring-your-own-key plan).
 // IMPORTANT: keep SYSTEM_PROMPT identical to the copy in supabase/functions/generate-sketch/index.ts.
-import type { Lesson, WiringRow } from './types';
+import type { Lesson, PartItem, WiringRow } from './types';
 
 export const MODEL = 'claude-sonnet-5-5';
 
@@ -17,6 +17,7 @@ Rules:
 - If compiler errors are given, fix them. Do not change the program's behaviour.
 - If photos are attached, they show the user's real board, breadboard or parts. Use them to work out what is connected to which pin and write code that matches the actual wiring. If a wire, part or voltage in the photo looks wrong, missing or unsafe, say so in the safety block.
 - Always include a wiring block: a JSON array with one object per physical connection the user must make, in the order they should wire them. Each object has "pin" (the board pin, e.g. "D13", "GPIO4", "GND", "5V"), "part" (what it connects to, e.g. "Red LED anode"), "to" (the full wire path in plain words, including any resistor, e.g. "through a 220 ohm resistor to the LED's long leg; short leg to GND") plus "group" (a short label for the physical part this wire belongs to, e.g. "LED1", "Button", "Servo"; every wire to the same part uses the same group), "kind" (one of: led, resistor, button, sensor, servo, motor, buzzer, display, other) and optionally "note". Use an empty array [] only if nothing needs wiring.
+- Always include a parts block: a JSON array listing everything the user must have to build this, one object per item, with "name", "qty" (a number), optionally "spec" (value, size or model, e.g. "220 ohm, 1/4 W"), optionally "note" (why it is needed), and "optional": true for nice-to-have items. Include jumper wires (with a count), a breadboard when parts are used, resistors, capacitors, power supplies and the USB cable. Do not list the board itself. Use an empty array [] only if nothing besides the board and USB cable is needed.
 - If the request says Teaching mode is ON, add one more block after the safety block, exactly as the request describes. Otherwise never add it.
 - Always check the hardware for risks: LEDs without resistors, motors, relays or servos powered or driven straight from a pin, 5V signals into 3.3V boards, shorted pins, too many LEDs for the supply, or pins that are not safe to use on this board. List each real risk in the safety block, one per line, with the fix.
 
@@ -36,6 +37,10 @@ Reply in exactly this format and nothing else:
 
 \`\`\`wiring
 <JSON array of connections as described above>
+\`\`\`
+
+\`\`\`parts
+<JSON array of parts as described above>
 \`\`\`
 
 \`\`\`safety
@@ -66,10 +71,34 @@ export function buildUserMessage(opts: {
 
 const KINDS = ['led', 'resistor', 'button', 'sensor', 'servo', 'motor', 'buzzer', 'display', 'other'];
 
+function parseJsonLoose(raw: string): unknown {
+  const text = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/```$/, '').trim();
+  try {
+    return JSON.parse(text);
+  } catch {
+    return JSON.parse(text.replace(/,(\s*[}\]])/g, '$1'));
+  }
+}
+
+/** Reads the AI's parts block. */
+export function parseParts(raw: string): PartItem[] {
+  try {
+    const data = parseJsonLoose(raw);
+    if (!Array.isArray(data)) return [];
+    const clip = (v: unknown, n: number) => String(v ?? '').trim().slice(0, n);
+    return data
+      .slice(0, 40)
+      .map((r) => ({ name: clip(r?.name, 80), qty: Math.max(1, Math.min(999, Math.round(Number(r?.qty)) || 1)), spec: clip(r?.spec, 120) || undefined, note: clip(r?.note, 200) || undefined, optional: r?.optional === true || undefined }))
+      .filter((r) => r.name);
+  } catch {
+    return [];
+  }
+}
+
 /** Reads the AI's wiring block. Anything malformed is dropped rather than shown. */
 export function parseWiring(raw: string): WiringRow[] {
   try {
-    const data = JSON.parse(raw);
+    const data = parseJsonLoose(raw);
     if (!Array.isArray(data)) return [];
     const clip = (v: unknown, n: number) => String(v ?? '').trim().slice(0, n);
     return data
@@ -85,7 +114,7 @@ export function parseWiring(raw: string): WiringRow[] {
 export function parseLesson(raw: string): Lesson | undefined {
   if (!raw) return undefined;
   try {
-    const d = JSON.parse(raw);
+    const d = parseJsonLoose(raw) as any;
     const clip = (v: unknown, n: number) => String(v ?? '').trim().slice(0, n);
     const list = <T,>(v: unknown, f: (x: any) => T | null, max: number): T[] =>
       Array.isArray(v) ? v.slice(0, max).map(f).filter((x): x is T => x !== null) : [];
@@ -101,7 +130,7 @@ export function parseLesson(raw: string): Lesson | undefined {
   }
 }
 
-export function parseReply(text: string): { code: string; libraries: string[]; notes: string; safety: string; wiring: WiringRow[]; lesson?: Lesson } {
+export function parseReply(text: string): { code: string; libraries: string[]; notes: string; safety: string; wiring: WiringRow[]; parts: PartItem[]; lesson?: Lesson } {
   const rawSafety = extractBlock(text, 'safety');
   return {
     safety: /^none\.?$/i.test(rawSafety) ? '' : rawSafety,
@@ -113,6 +142,7 @@ export function parseReply(text: string): { code: string; libraries: string[]; n
       .slice(0, 10),
     notes: extractBlock(text, 'notes'),
     wiring: parseWiring(extractBlock(text, 'wiring')),
+    parts: parseParts(extractBlock(text, 'parts')),
     lesson: parseLesson(extractBlock(text, 'lesson')),
   };
 }

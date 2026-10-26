@@ -1,4 +1,4 @@
-import type { GenerateRequest, GenerateResult, StatusEvent, WiringRow, Lesson } from '../shared/types';
+import type { GenerateRequest, GenerateResult, StatusEvent, WiringRow, Lesson, PartItem } from '../shared/types';
 import { loadConfig } from './config';
 import { accessToken } from './auth';
 import { compile, ensureCore, ensureLibraries } from './arduino';
@@ -13,6 +13,7 @@ interface EdgeResponse {
   notes?: string;
   safety?: string;
   wiring?: WiringRow[];
+  parts?: PartItem[];
   lesson?: Lesson;
   error?: string;
   code_name?: string;
@@ -71,7 +72,7 @@ async function callClaudeDirect(body: Record<string, unknown>): Promise<EdgeResp
     },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: 8000,
+      max_tokens: body.teach === true ? 12000 : 8000,
       system: SYSTEM_PROMPT,
       messages: [
         {
@@ -124,6 +125,7 @@ export async function generateAndVerify(
   let safety = '';
   let wiring: WiringRow[] = [];
   let lesson: Lesson | undefined;
+  let parts: PartItem[] = [];
   let lastErrors = '';
 
   // Install the board core up front so the first compile is not slow mid-loop.
@@ -164,6 +166,7 @@ export async function generateAndVerify(
     safety = resp.safety || safety;
     wiring = resp.wiring?.length ? resp.wiring : wiring;
     lesson = resp.lesson ?? lesson;
+    parts = resp.parts?.length ? resp.parts : parts;
 
     const libs = await ensureLibraries(resp.libraries ?? [], (stage, message) =>
       emit({ stage, message })
@@ -176,7 +179,7 @@ export async function generateAndVerify(
     const built = await compile(code, req.fqbn, (stage, message) => emit({ stage, message }));
     if (built.ok) {
       emit({ stage: 'done', message: 'Compiled successfully.' });
-      return { ok: true, code, notes, safety, wiring, lesson, attempts: attempt };
+      return { ok: true, code, notes, safety, wiring, parts, lesson, attempts: attempt };
     }
     lastErrors = built.output.slice(-4000);
   }

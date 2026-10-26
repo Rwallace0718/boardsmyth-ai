@@ -2,11 +2,30 @@ import type { WiringRow } from '../shared/types';
 import BreadboardView from './BreadboardView';
 
 /** Table plus a simple diagram of how to wire the parts, built from the AI's wiring list. */
-export default function WiringPanel({ rows, boardName }: { rows: WiringRow[]; boardName: string }) {
+export default function WiringPanel({
+  rows,
+  boardName,
+  onAnalyze,
+  canAnalyze,
+}: {
+  rows: WiringRow[];
+  boardName: string;
+  onAnalyze?: () => void;
+  canAnalyze?: boolean;
+}) {
   if (!rows.length) {
     return (
       <div className="wiring-empty muted">
-        Wiring for your program shows here after you press Generate. If the program needs no parts, there is nothing to wire.
+        <p>Wiring for your program shows here after you press Generate. If the program needs no parts, there is nothing to wire.</p>
+        {onAnalyze && (
+          <p>
+            Already have a program?{' '}
+            <button className="link-btn" disabled={!canAnalyze} onClick={onAnalyze}>
+              Work out the wiring and parts for this program
+            </button>{' '}
+            (uses 1 generation, the program is not changed).
+          </p>
+        )}
       </div>
     );
   }

@@ -62,7 +62,7 @@ textarea { resize: none; width: 100%; }
 
 .editor-pane { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 .editor { flex: 1; min-height: 0; }
-.console { height: 230px; display: flex; flex-direction: column; border-top: 1px solid var(--border); background: var(--panel); }
+.console { height: 320px; display: flex; flex-direction: column; border-top: 1px solid var(--border); background: var(--panel); }
 .tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 10px; border-bottom: 1px solid var(--border); }
 .tabs button { padding: 4px 10px; }
 .tabs button.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
@@ -165,3 +165,9 @@ textarea { resize: none; width: 100%; }
 .quiz { margin-bottom: 8px; }
 .quiz .answer { margin-top: 4px; padding: 6px 10px; border-left: 3px solid var(--accent); background: rgba(255,255,255,.04); }
 .teach-toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+
+.splitter { height: 7px; cursor: row-resize; background: var(--border); flex: none; }
+.splitter:hover { background: var(--accent); }
+.lesson-h { margin: 14px 0 6px; font-size: 14px; }
+.wiring-empty p { margin: 0 0 10px; }
+.teach-toggle.small { white-space: nowrap; }

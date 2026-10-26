@@ -8,6 +8,7 @@ import type {
   HistoryItem,
   WiringRow,
   Lesson,
+  PartItem,
   GenerateResult,
   PhoneSession,
   StatusEvent,
@@ -19,6 +20,7 @@ import BoardPicker from './BoardPicker';
 import WiringPanel from './WiringPanel';
 import ProjectLibrary from './ProjectLibrary';
 import LessonPanel from './LessonPanel';
+import PartsPanel from './PartsPanel';
 
 const STARTER = `// Describe what you want in the box on the left, then press Generate.
 void setup() {
@@ -75,7 +77,17 @@ export default function App() {
   const [logDetail, setLogDetail] = useState<{ for: string; text: string } | null>(null);
   const [showDetail, setShowDetail] = useState(false);
   const [monitorOn, setMonitorOn] = useState(false);
-  const [tab, setTab] = useState<'log' | 'serial' | 'wiring' | 'lesson'>('log');
+  const [tab, setTab] = useState<'log' | 'serial' | 'wiring' | 'parts' | 'lesson'>('log');
+  const [parts, setParts] = useState<PartItem[]>([]);
+  const [consoleH, setConsoleH] = useState(() => {
+    try {
+      return Number(localStorage.getItem('consoleH')) || 320;
+    } catch {
+      return 320;
+    }
+  });
+  const consoleHRef = useRef(320);
+  consoleHRef.current = consoleH;
   const [lesson, setLesson] = useState<Lesson | undefined>();
   const [teach, setTeach] = useState(() => {
     try {
@@ -163,6 +175,9 @@ export default function App() {
           setBaseFqbn(d.fqbn);
         }
         if (d?.history) setHistory(d.history);
+        if (d?.wiring) setWiring(d.wiring);
+        if (d?.parts) setParts(d.parts);
+        if (d?.lesson) setLesson(d.lesson);
       })
       .finally(() => setDraftLoaded(true));
   }, []);
@@ -170,9 +185,9 @@ export default function App() {
   // Keep the program saved as you work, so it is still there next time.
   useEffect(() => {
     if (!draftLoaded) return;
-    const t = setTimeout(() => void window.api.draft.set({ code, fqbn: baseFqbn, history }), 600);
+    const t = setTimeout(() => void window.api.draft.set({ code, fqbn: baseFqbn, history, wiring, parts, lesson }), 600);
     return () => clearTimeout(t);
-  }, [code, baseFqbn, history, draftLoaded]);
+  }, [code, baseFqbn, history, wiring, parts, lesson, draftLoaded]);
 
   // File menu actions (New, Open, Save, Save as).
   const codeRef = useRef(code);
@@ -331,7 +346,7 @@ export default function App() {
     setBaseFqbn(b.fqbn);
   }
 
-  async function generate(override?: { prompt: string; shown: string }): Promise<GenerateResult | undefined> {
+  async function generate(override?: { prompt: string; shown: string; teach?: boolean }): Promise<GenerateResult | undefined> {
     const request = (override?.prompt ?? prompt).trim();
     if (!request || working) return undefined;
     if (!override) lastGoal.current = request;
@@ -357,7 +372,7 @@ export default function App() {
         boardName,
         currentCode: hasUserCode ? cur : undefined,
         images: photos.length ? photos : undefined,
-        teach,
+        teach: override?.teach ?? teach,
       });
     } catch (e) {
       // Never leave the app stuck "busy" (that locks the prompt box) if the request itself blows up.
@@ -368,8 +383,12 @@ export default function App() {
     setLastSafety(res.safety ?? '');
     if (res.ok) {
       setWiring(res.wiring ?? []);
-      setLesson(res.lesson);
-      setTab(res.lesson ? 'lesson' : res.wiring?.length ? 'wiring' : tab);
+      setParts(res.parts ?? []);
+      if (res.lesson || override?.teach === undefined) setLesson(res.lesson);
+      setTab(res.lesson ? 'lesson' : res.wiring?.length ? 'wiring' : res.parts?.length ? 'parts' : tab);
+      if (res.wiring?.length || res.parts?.length) setConsoleH((h) => Math.max(h, Math.min(window.innerHeight - 220, 460)));
+      if ((override?.teach ?? teach) && !res.lesson)
+        setChat((c) => [...c, { role: 'system', text: 'The AI did not include a lesson this time. Press "Explain this program" on the Lesson tab to try again.' }]);
       setChat((c) => [
         ...c,
         { role: 'ai', text: res.notes || 'Done. The program compiled successfully.' },
@@ -385,6 +404,40 @@ export default function App() {
     setStatus(null);
     void refreshAuth();
     return res;
+  }
+
+  const KEEP = 'Do NOT change the program: return the code exactly as it is, character for character. ';
+  function analyzeProgram() {
+    void generate({
+      shown: 'Work out the wiring and parts for this program',
+      prompt: KEEP + 'Only fill in the wiring block and the parts block for the program above, and say in the notes what it does.',
+    });
+  }
+  function explainProgram() {
+    void generate({
+      shown: 'Explain this program',
+      teach: true,
+      prompt: KEEP + 'Only fill in the wiring block, the parts block and the lesson block for the program above.',
+    });
+  }
+
+  function startDrag(e: React.MouseEvent) {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startH = consoleHRef.current;
+    const move = (ev: MouseEvent) =>
+      setConsoleH(Math.min(window.innerHeight - 200, Math.max(120, startH + (startY - ev.clientY))));
+    const up = () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+      try {
+        localStorage.setItem('consoleH', String(consoleHRef.current));
+      } catch {
+        /* ignore */
+      }
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
   }
 
   async function runCompile() {
@@ -633,7 +686,7 @@ export default function App() {
               }
             }}
           />
-          Check it works
+          Check it works after upload
         </label>
         <button
           title="Save this program as a .ino file (Ctrl+S)"
@@ -945,16 +998,33 @@ export default function App() {
               theme="vs-dark"
               value={code}
               onChange={(v) => setCode(v ?? '')}
-              options={{ fontSize: 14, minimap: { enabled: false }, scrollBeyondLastLine: false, contextmenu: false }}
+              options={{ fontSize: 14, automaticLayout: true, minimap: { enabled: false }, scrollBeyondLastLine: false, contextmenu: false }}
             />
           </div>
-          <div className="console">
+          <div
+            className="splitter"
+            title="Drag up to make the bottom panel taller. Double-click to switch between tall and short."
+            onMouseDown={startDrag}
+            onDoubleClick={() => {
+              const h = consoleHRef.current > 380 ? 230 : Math.min(window.innerHeight - 200, 560);
+              setConsoleH(h);
+              try {
+                localStorage.setItem('consoleH', String(h));
+              } catch {
+                /* ignore */
+              }
+            }}
+          />
+          <div className="console" style={{ height: consoleH }}>
             <div className="tabs">
               <button className={tab === 'log' ? 'active' : ''} onClick={() => setTab('log')}>
                 Output
               </button>
               <button className={tab === 'wiring' ? 'active' : ''} onClick={() => setTab('wiring')}>
                 Wiring{wiring.length ? ` (${wiring.length})` : ''}
+              </button>
+              <button className={tab === 'parts' ? 'active' : ''} onClick={() => setTab('parts')}>
+                Parts{parts.length ? ` (${parts.length})` : ''}
               </button>
               <button className={tab === 'lesson' ? 'active' : ''} onClick={() => setTab('lesson')}>
                 Lesson
@@ -988,9 +1058,11 @@ export default function App() {
               )}
             </div>
             {tab === 'lesson' ? (
-              <LessonPanel lesson={lesson} />
+              <LessonPanel lesson={lesson} teach={teach} onExplain={explainProgram} canExplain={!working && !outOfFree && !needsKey} />
+            ) : tab === 'parts' ? (
+              <PartsPanel parts={parts} onAnalyze={analyzeProgram} canAnalyze={!working && !outOfFree && !needsKey} />
             ) : tab === 'wiring' ? (
-              <WiringPanel rows={wiring} boardName={boardName} />
+              <WiringPanel rows={wiring} boardName={boardName} onAnalyze={analyzeProgram} canAnalyze={!working && !outOfFree && !needsKey} />
             ) : tab === 'log' ? (
               <pre className="output">
                 {log || 'Output from checking and uploading shows here.'}
