@@ -133,7 +133,11 @@ async function checkForUpdates(): Promise<void> {
 }
 
 /** Quiet background check: no dialogs, just updates the button in the window. */
-const backgroundUpdateCheck = () => void refreshUpdateState().catch(() => undefined);
+let lastUpdateCheck = 0;
+const backgroundUpdateCheck = () => {
+  lastUpdateCheck = Date.now();
+  void refreshUpdateState().catch(() => undefined);
+};
 
 const draftFile = () => path.join(app.getPath('userData'), 'draft.json');
 
@@ -344,7 +348,11 @@ app.whenReady().then(() => {
   buildMenu();
   createWindow();
   setTimeout(backgroundUpdateCheck, 4_000);
-  setInterval(backgroundUpdateCheck, 4 * 60 * 60 * 1000);
+  // Look again every 30 minutes, and whenever the window regains focus (at most once every 5 minutes).
+  setInterval(backgroundUpdateCheck, 30 * 60 * 1000);
+  app.on('browser-window-focus', () => {
+    if (Date.now() - lastUpdateCheck > 5 * 60 * 1000) backgroundUpdateCheck();
+  });
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
