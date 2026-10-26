@@ -215,6 +215,7 @@ function buildMenu(): void {
     {
       role: 'help',
       submenu: [
+        { label: 'Tutorial (opens in your browser)', click: () => void shell.openExternal('https://boardsmythai.com/tutorial.html') },
         { label: 'Check for updates…', click: () => void checkForUpdates() },
         {
           label: 'Open-source notices…',
