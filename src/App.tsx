@@ -65,6 +65,9 @@ export default function App() {
   const [status, setStatus] = useState<StatusEvent | null>(null);
   const [busy, setBusy] = useState(false);
   const [log, setLog] = useState('');
+  // Raw tool output (copyright banners, progress lines) tucked behind "Show details" when a step succeeds.
+  const [logDetail, setLogDetail] = useState<{ for: string; text: string } | null>(null);
+  const [showDetail, setShowDetail] = useState(false);
   const [monitorOn, setMonitorOn] = useState(false);
   const [tab, setTab] = useState<'log' | 'serial'>('log');
   const [serial, setSerial] = useState('');
@@ -358,7 +361,13 @@ export default function App() {
     setTab('log');
     try {
       const res = await window.api.compile(code, fqbn);
-      setLog(res.ok ? `Compiled successfully.\n\n${res.output}` : res.output);
+      if (res.ok) {
+        setLog('Compiled successfully.');
+        setLogDetail({ for: 'Compiled successfully.', text: res.output });
+        setShowDetail(false);
+      } else {
+        setLog(res.output);
+      }
     } catch (e) {
       setLog(`Check failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -383,7 +392,14 @@ export default function App() {
     setMonitorOn(false);
     try {
       const res = await window.api.upload(code, fqbn, port);
-      setLog(res.ok ? `Uploaded to ${port}.\n\n${res.output}` : res.output);
+      if (res.ok) {
+        const done = `Uploaded to ${port}.`;
+        setLog(done);
+        setLogDetail({ for: done, text: res.output });
+        setShowDetail(false);
+      } else {
+        setLog(res.output);
+      }
     } catch (e) {
       setLog(`Upload failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -802,7 +818,18 @@ export default function App() {
               )}
             </div>
             {tab === 'log' ? (
-              <pre className="output">{log || 'Output from checking and uploading shows here.'}</pre>
+              <pre className="output">
+                {log || 'Output from checking and uploading shows here.'}
+                {logDetail && logDetail.for === log && (
+                  <>
+                    {'\n\n'}
+                    <button className="link-btn" onClick={() => setShowDetail((v) => !v)}>
+                      {showDetail ? 'Hide details' : 'Show details'}
+                    </button>
+                    {showDetail && `\n\n${logDetail.text}`}
+                  </>
+                )}
+              </pre>
             ) : (
               <pre className="output" ref={serialRef}>
                 {serial || 'Press Start to see what your board prints.'}

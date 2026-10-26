@@ -1,0 +1,43 @@
+BoardSmyth AI - Third-party notices
+Copyright (c) 2026 Code Crafted Nexus LLC. All rights reserved.
+
+BoardSmyth AI is not made by, affiliated with, or endorsed by Arduino. "Arduino" is a
+trademark of Arduino SA. Board names are used only to say which boards BoardSmyth AI works with.
+
+BoardSmyth AI includes and uses the open-source software below. Each item stays under its own
+license, and nothing in BoardSmyth AI's own license takes those rights away from you.
+
+
+1. Arduino CLI  (bundled, run as a separate program)
+   Version:  1.1.1
+   License:  GNU General Public License v3.0 (GPL-3.0)
+   Source:   https://github.com/arduino/arduino-cli   (tag v1.1.1)
+   License text: https://www.gnu.org/licenses/gpl-3.0.html
+   BoardSmyth AI starts Arduino CLI as its own program to compile code and upload it to your
+   board. BoardSmyth AI does not modify it. The complete source code for the version included is
+   available at the address above, free of charge.
+
+2. Board software and libraries downloaded while you use the app
+   When you pick a board or a program needs a library, Arduino CLI downloads board packages,
+   upload tools (for example dfu-util, avrdude and esptool) and libraries (for example the
+   Adafruit NeoPixel library) from their publishers onto your computer. They are not part of the
+   BoardSmyth AI installer. Each comes with its own license, which you can find in the folder it
+   was installed to. Their messages (including copyright lines) can appear in the app's output
+   details.
+
+3. Electron (includes Chromium and Node.js)   - MIT and other licenses
+   https://www.electronjs.org
+   The full licenses ship with the app (LICENSE and LICENSES.chromium.html next to the program).
+
+4. React and React DOM                         - MIT      https://react.dev
+5. Monaco Editor and @monaco-editor/react      - MIT      https://github.com/microsoft/monaco-editor
+6. Supabase JS client                          - MIT      https://github.com/supabase/supabase-js
+7. node-qrcode ("qrcode")                      - MIT      https://github.com/soldair/node-qrcode
+8. ws (WebSocket library)                      - MIT      https://github.com/websockets/ws
+
+The MIT License permits use, copying, modification and distribution provided the copyright notice
+and permission notice are kept. These packages are provided "as is", without warranty of any kind.
+The full copyright lines for items 4-8 are in each package's LICENSE file, available from the
+links above.
+
+Questions about this notice: contact Code Crafted Nexus LLC through https://boardsmythai.com

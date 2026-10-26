@@ -161,6 +161,15 @@ function buildMenu(): void {
       submenu: [
         { label: 'Check for updates…', click: () => void checkForUpdates() },
         {
+          label: 'Open-source notices…',
+          click: () =>
+            void shell.openPath(
+              app.isPackaged
+                ? path.join(process.resourcesPath, 'THIRD_PARTY_NOTICES.txt')
+                : path.join(app.getAppPath(), 'resources', 'THIRD_PARTY_NOTICES.txt')
+            ),
+        },
+        {
           label: 'BoardSmyth AI website',
           click: () => void shell.openExternal('https://boardsmythai.com'),
         },

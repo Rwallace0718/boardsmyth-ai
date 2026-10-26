@@ -16,6 +16,7 @@ module.exports = {
   files: ["dist/**", "dist-electron/**", "package.json"],
   extraResources: [
     { from: "resources/arduino-cli", to: "arduino-cli" },
+    { from: "resources/THIRD_PARTY_NOTICES.txt", to: "THIRD_PARTY_NOTICES.txt" },
     { from: "app-config.json", to: "app-config.json" }
   ],
   win: Object.assign(
