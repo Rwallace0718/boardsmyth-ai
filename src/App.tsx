@@ -714,15 +714,22 @@ export default function App() {
               </label>
               <button
                 disabled={working}
-                title="Put back the program from before the last AI change"
+                title={
+                  history[0]?.label === 'Redo point'
+                    ? 'Bring back the change you just undid'
+                    : 'Put back the program from before the last AI change'
+                }
                 onClick={() => {
                   const item = history[0];
                   if (!item) return;
+                  // Swap, don't delete: the program we are leaving becomes the redo point,
+                  // so the history bar stays and the button can flip back and forth.
+                  const leaving = history[0].label === 'Redo point' ? 'Before redo' : 'Redo point';
+                  setHistory((h) => [{ t: Date.now(), label: leaving, code }, ...h.slice(1)]);
                   setCode(item.code);
-                  setHistory((h) => h.slice(1));
                 }}
               >
-                Undo last AI change
+                {history[0]?.label === 'Redo point' ? 'Redo' : 'Undo last AI change'}
               </button>
             </div>
           )}
