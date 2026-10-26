@@ -59,8 +59,11 @@ export function buildUserMessage(opts: {
   currentCode?: string;
   compileErrors?: string;
   teach?: boolean;
+  boardFacts?: string;
 }): string {
-  let msg = `Board: ${opts.boardName} (${opts.fqbn})\n\nRequest: ${opts.prompt.slice(0, 4000)}`;
+  let msg = `Board: ${opts.boardName} (${opts.fqbn})`;
+  if (opts.boardFacts) msg += `\n\nVerified facts about this board (trust these over your memory; if the request conflicts with them, say so in the notes):\n${opts.boardFacts.slice(0, 2500)}`;
+  msg += `\n\nRequest: ${opts.prompt.slice(0, 4000)}`;
   if (opts.currentCode)
     msg += `\n\nExisting sketch:\n\`\`\`cpp\n${opts.currentCode.slice(0, 30000)}\n\`\`\``;
   if (opts.compileErrors)

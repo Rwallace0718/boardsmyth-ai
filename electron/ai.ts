@@ -84,6 +84,7 @@ async function callClaudeDirect(body: Record<string, unknown>): Promise<EdgeResp
             currentCode: body.currentCode ? String(body.currentCode) : undefined,
             compileErrors: body.compileErrors ? String(body.compileErrors) : undefined,
             teach: body.teach === true,
+            boardFacts: body.boardFacts ? String(body.boardFacts) : undefined,
           })),
         },
       ],
@@ -148,6 +149,7 @@ export async function generateAndVerify(
       compileErrors: attempt === 1 ? undefined : lastErrors,
       images: attempt === 1 ? req.images : undefined,
       teach: attempt === 1 ? req.teach === true : false,
+      boardFacts: req.boardFacts,
     });
 
     if (resp.error || !resp.code) {

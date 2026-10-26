@@ -34,6 +34,14 @@ export interface DetectedPort {
   fqbn?: string;
 }
 
+export interface LibraryInfo {
+  name: string;
+  version?: string;
+  author?: string;
+  summary?: string;
+  installed: boolean;
+}
+
 export interface GenerateRequest {
   prompt: string;
   fqbn: string;
@@ -43,6 +51,8 @@ export interface GenerateRequest {
   images?: string[];
   /** Teaching mode: also return a lesson that explains the program. */
   teach?: boolean;
+  /** Verified pin facts for the chosen board, added to the AI request. */
+  boardFacts?: string;
 }
 
 export interface WiringRow {
@@ -183,6 +193,13 @@ export interface Api {
     /** Installs the board's core if needed and returns its option menus. */
     details(fqbn: string): Promise<BoardDetails>;
     detect(): Promise<DetectedPort[]>;
+  };
+  libraries: {
+    /** Searches the Arduino Library Manager. Empty query returns nothing. */
+    search(query: string): Promise<LibraryInfo[]>;
+    installed(): Promise<LibraryInfo[]>;
+    install(name: string): Promise<ActionResult>;
+    remove(name: string): Promise<ActionResult>;
   };
   generate(req: GenerateRequest): Promise<GenerateResult>;
   compile(code: string, fqbn: string): Promise<ActionResult>;

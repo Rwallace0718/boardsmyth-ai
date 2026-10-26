@@ -21,6 +21,12 @@ const api: Api = {
     details: (fqbn) => ipcRenderer.invoke('boards:details', fqbn),
     detect: () => ipcRenderer.invoke('boards:detect'),
   },
+  libraries: {
+    search: (q) => ipcRenderer.invoke('lib:search', q),
+    installed: () => ipcRenderer.invoke('lib:installed'),
+    install: (name) => ipcRenderer.invoke('lib:install', name),
+    remove: (name) => ipcRenderer.invoke('lib:remove', name),
+  },
   generate: (req) => ipcRenderer.invoke('ai:generate', req),
   compile: (code, fqbn) => ipcRenderer.invoke('arduino:compile', code, fqbn),
   upload: (code, fqbn, port) => ipcRenderer.invoke('arduino:upload', code, fqbn, port),

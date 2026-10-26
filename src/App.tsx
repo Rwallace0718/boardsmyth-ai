@@ -21,6 +21,9 @@ import WiringPanel from './WiringPanel';
 import ProjectLibrary from './ProjectLibrary';
 import LessonPanel from './LessonPanel';
 import PartsPanel from './PartsPanel';
+import PinsPanel from './PinsPanel';
+import LibraryPanel from './LibraryPanel';
+import { factsForPrompt } from '../shared/boardFacts';
 
 const STARTER = `// Describe what you want in the box on the left, then press Generate.
 void setup() {
@@ -77,7 +80,7 @@ export default function App() {
   const [logDetail, setLogDetail] = useState<{ for: string; text: string } | null>(null);
   const [showDetail, setShowDetail] = useState(false);
   const [monitorOn, setMonitorOn] = useState(false);
-  const [tab, setTab] = useState<'log' | 'serial' | 'wiring' | 'parts' | 'lesson'>('log');
+  const [tab, setTab] = useState<'log' | 'serial' | 'wiring' | 'parts' | 'pins' | 'libs' | 'lesson'>('log');
   const [parts, setParts] = useState<PartItem[]>([]);
   const [consoleH, setConsoleH] = useState(() => {
     try {
@@ -373,6 +376,7 @@ export default function App() {
         currentCode: hasUserCode ? cur : undefined,
         images: photos.length ? photos : undefined,
         teach: override?.teach ?? teach,
+        boardFacts: factsForPrompt(fqbn) || undefined,
       });
     } catch (e) {
       // Never leave the app stuck "busy" (that locks the prompt box) if the request itself blows up.
@@ -1023,6 +1027,12 @@ export default function App() {
               <button className={tab === 'wiring' ? 'active' : ''} onClick={() => setTab('wiring')}>
                 Wiring{wiring.length ? ` (${wiring.length})` : ''}
               </button>
+              <button className={tab === 'libs' ? 'active' : ''} onClick={() => setTab('libs')}>
+                Libraries
+              </button>
+              <button className={tab === 'pins' ? 'active' : ''} onClick={() => setTab('pins')}>
+                Pins
+              </button>
               <button className={tab === 'parts' ? 'active' : ''} onClick={() => setTab('parts')}>
                 Parts{parts.length ? ` (${parts.length})` : ''}
               </button>
@@ -1059,6 +1069,10 @@ export default function App() {
             </div>
             {tab === 'lesson' ? (
               <LessonPanel lesson={lesson} teach={teach} onExplain={explainProgram} canExplain={!working && !outOfFree && !needsKey} />
+            ) : tab === 'libs' ? (
+              <LibraryPanel />
+            ) : tab === 'pins' ? (
+              <PinsPanel fqbn={fqbn} boardName={boardName} />
             ) : tab === 'parts' ? (
               <PartsPanel parts={parts} onAnalyze={analyzeProgram} canAnalyze={!working && !outOfFree && !needsKey} />
             ) : tab === 'wiring' ? (

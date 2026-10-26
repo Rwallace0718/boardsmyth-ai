@@ -8,6 +8,7 @@ import type {
   BoardDetails,
   BoardOption,
   DetectedPort,
+  LibraryInfo,
 } from '../shared/types';
 import { ADDITIONAL_BOARD_URLS, POPULAR_BOARDS, coreForFqbn, uploadHint } from './boards';
 import { ALL_KNOWN_BOARDS } from './boards-static';
@@ -257,6 +258,53 @@ async function searchLibraries(query: string): Promise<string[]> {
   const parsed = parseJson(res.stdout);
   const rows: any[] = parsed?.libraries ?? [];
   return rows.map((r) => String(r.name)).filter(Boolean);
+}
+
+export async function listInstalledLibraries(): Promise<LibraryInfo[]> {
+  const res = await runRaw(['lib', 'list', '--format', 'json']);
+  const parsed = parseJson(res.stdout);
+  const rows: any[] = parsed?.installed_libraries ?? (Array.isArray(parsed) ? parsed : []);
+  return rows
+    .map((r) => ({
+      name: String(r.library?.name ?? r.name ?? ''),
+      version: r.library?.version ? String(r.library.version) : undefined,
+      author: r.library?.author ? String(r.library.author) : undefined,
+      summary: r.library?.sentence ? String(r.library.sentence) : undefined,
+      installed: true,
+    }))
+    .filter((l) => l.name)
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export async function searchLibraryInfo(query: string): Promise<LibraryInfo[]> {
+  const q = query.trim().slice(0, 80);
+  if (!q) return [];
+  await ensureLibIndex();
+  const [res, have] = await Promise.all([
+    runRaw(['lib', 'search', q, '--format', 'json'], 60_000),
+    installedLibraryNames(),
+  ]);
+  const rows: any[] = parseJson(res.stdout)?.libraries ?? [];
+  return rows.slice(0, 40).map((r) => ({
+    name: String(r.name),
+    version: r.latest?.version ? String(r.latest.version) : undefined,
+    author: r.latest?.author ? String(r.latest.author) : undefined,
+    summary: r.latest?.sentence ? String(r.latest.sentence) : undefined,
+    installed: have.has(norm(String(r.name))),
+  }));
+}
+
+/** Library names are passed to the CLI as arguments, never through a shell, but keep them to sane characters. */
+const SAFE_LIB = /^(?!-)[\w .+\-()/]{1,100}$/;
+
+export async function installLibrary(name: string): Promise<ActionResult> {
+  if (!SAFE_LIB.test(name)) return { ok: false, output: 'That library name looks wrong.' };
+  return run(['lib', 'install', name]);
+}
+
+export async function removeLibrary(name: string): Promise<ActionResult> {
+  if (!SAFE_LIB.test(name)) return { ok: false, output: 'That library name looks wrong.' };
+  return run(['lib', 'uninstall', name]);
 }
 
 /** Finds the exact Library Manager name for a requested library, then installs it. */

@@ -171,3 +171,9 @@ textarea { resize: none; width: 100%; }
 .lesson-h { margin: 14px 0 6px; font-size: 14px; }
 .wiring-empty p { margin: 0 0 10px; }
 .teach-toggle.small { white-space: nowrap; }
+
+/* Libraries */
+.lib-search { display: flex; gap: 8px; margin-bottom: 8px; }
+.lib-search input { flex: 1; }
+.lib-list { list-style: none; padding: 0; margin: 0; }
+.lib-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--border); }

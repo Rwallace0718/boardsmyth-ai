@@ -267,6 +267,10 @@ function registerIpc(): void {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
   });
+  ipcMain.handle('lib:search', (_e, q: string) => arduino.searchLibraryInfo(String(q ?? '')).catch(() => []));
+  ipcMain.handle('lib:installed', () => arduino.listInstalledLibraries().catch(() => []));
+  ipcMain.handle('lib:install', (_e, name: string) => arduino.installLibrary(String(name ?? '')));
+  ipcMain.handle('lib:remove', (_e, name: string) => arduino.removeLibrary(String(name ?? '')));
   ipcMain.handle('draft:get', (): Draft | null => {
     try {
       return JSON.parse(fs.readFileSync(draftFile(), 'utf8')) as Draft;
