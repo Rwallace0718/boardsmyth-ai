@@ -1,12 +1,12 @@
 // Uploads the finished installer to the public Supabase "releases" bucket and writes that platform's version.json.
-// Usage: node scripts/publish-release.mjs win|mac "release notes"
+// Usage: node scripts/publish-release.mjs win|mac|linux "release notes"
 // Needs env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY. Run by the GitHub release workflow, never on a laptop by default.
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 const platform = process.argv[2];
 const notes = process.argv[3] ?? '';
-if (!['win', 'mac'].includes(platform)) throw new Error('First argument must be win or mac');
+if (!['win', 'mac', 'linux'].includes(platform)) throw new Error('First argument must be win, mac or linux');
 const base = process.env.SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!base || !key) throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set');
@@ -16,7 +16,9 @@ const files = readdirSync('release');
 const wanted =
   platform === 'win'
     ? files.filter((f) => /^BoardSmyth-AI-Setup\.exe$/.test(f))
-    : files.filter((f) => /^BoardSmyth-AI-.*\.dmg$/.test(f));
+    : platform === 'linux'
+      ? files.filter((f) => /^BoardSmyth-AI-.*\.AppImage$/.test(f))
+      : files.filter((f) => /^BoardSmyth-AI-.*\.dmg$/.test(f));
 if (wanted.length === 0) throw new Error(`No ${platform} installer found in release/: ${files.join(', ')}`);
 
 async function put(path, body, type) {
@@ -43,7 +45,11 @@ const publicUrl = (path) => `${base}/storage/v1/object/public/releases/${path}`;
 let mainUrl = '';
 for (const f of wanted) {
   const data = readFileSync(join('release', f));
-  const type = f.endsWith('.exe') ? 'application/vnd.microsoft.portable-executable' : 'application/x-apple-diskimage';
+  const type = f.endsWith('.exe')
+    ? 'application/vnd.microsoft.portable-executable'
+    : f.endsWith('.AppImage')
+      ? 'application/octet-stream'
+      : 'application/x-apple-diskimage';
   await put(`${platform}/${f}`, data, type);
   // Keep every version too, e.g. win/BoardSmyth-AI-Setup-0.2.0.exe
   await put(`${platform}/${f.replace(/(\.[a-z]+)$/, `-${version}$1`)}`, data, type);

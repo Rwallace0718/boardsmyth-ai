@@ -25,12 +25,16 @@ on:
         description: Build Mac
         type: boolean
         default: true
+      build_linux:
+        description: Build Linux (AppImage, unsigned)
+        type: boolean
+        default: false
   push:
     tags: ['v*']
 
 jobs:
   version:
-    if: ${{ github.event_name == 'push' || inputs.build_windows || inputs.build_mac }}
+    if: ${{ github.event_name == 'push' || inputs.build_windows || inputs.build_mac || inputs.build_linux }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -178,4 +182,41 @@ jobs:
         with:
           name: mac-installer
           path: release/*.dmg
+          retention-days: 7
+
+  linux:
+    needs: version
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_linux }}
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Write app-config.json
+        env:
+          SB_URL: ${{ secrets.SUPABASE_URL }}
+          SB_ANON: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SB_URL" ] || [ -z "$SB_ANON" ]; then echo "::error::GitHub secret SUPABASE_URL or SUPABASE_ANON_KEY is empty."; exit 1; fi
+          cat > app-config.json <<JSON
+          {"supabaseUrl":"${{ secrets.SUPABASE_URL }}","supabaseAnonKey":"${{ secrets.SUPABASE_ANON_KEY }}","checkoutUrl":"${{ secrets.CHECKOUT_URL }}"}
+          JSON
+      - run: npm ci
+      - name: Build AppImage
+        run: npm run dist:linux
+      - name: Upload to Supabase
+        env:
+          NOTES: ${{ inputs.notes }}
+        run: node scripts/publish-release.mjs linux "$NOTES"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-installer
+          path: release/*.AppImage
           retention-days: 7

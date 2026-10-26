@@ -13,6 +13,7 @@
     "fetch-cli": "node scripts/fetch-arduino-cli.mjs",
     "dist": "npm run fetch-cli && npm run build && node scripts/require-signing.mjs && electron-builder --publish never --config electron-builder.config.js",
     "dist:mac": "npm run fetch-cli && npm run build && electron-builder --mac --publish never --config electron-builder.config.js",
+    "dist:linux": "npm run fetch-cli && npm run build && electron-builder --linux --publish never --config electron-builder.config.js",
     "dist:unsigned": "npm run fetch-cli && npm run build && electron-builder --publish never --config electron-builder.config.js",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.node.json --noEmit"
   },

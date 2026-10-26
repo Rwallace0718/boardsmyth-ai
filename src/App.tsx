@@ -59,6 +59,9 @@ async function fileToJpeg(file: Blob): Promise<string> {
   return canvas.toDataURL('image/jpeg', 0.8);
 }
 
+const OTA_NOTE =
+  '\n\n(Wireless uploads are ON: include the ArduinoOTA library. In setup() connect to Wi-Fi using clearly marked WIFI_SSID and WIFI_PASSWORD constants at the top, call ArduinoOTA.setHostname("boardsmyth") and ArduinoOTA.begin(), and call ArduinoOTA.handle() at the start of loop() without blocking delays longer than a few hundred milliseconds. Put "ArduinoOTA" and the board\'s WiFi library in the libraries block if needed, and mention in the notes that the first upload must be by USB.)';
+
 export default function App() {
   const [auth, setAuth] = useState<AuthState | null>(null);
   const [popular, setPopular] = useState<BoardOption[]>([]);
@@ -102,6 +105,13 @@ export default function App() {
   });
   const [wiring, setWiring] = useState<WiringRow[]>([]);
   const [showProjects, setShowProjects] = useState(false);
+  const [ota, setOta] = useState(() => {
+    try {
+      return localStorage.getItem('ota') === '1';
+    } catch {
+      return false;
+    }
+  });
   const [localAi, setLocalAi] = useState<LocalAiSettings>({ enabled: false, url: 'http://localhost:11434', model: '' });
   const [localPanel, setLocalPanel] = useState(false);
   const [localModels, setLocalModels] = useState<string[]>([]);
@@ -378,7 +388,7 @@ export default function App() {
     let res: GenerateResult;
     try {
       res = await window.api.generate({
-        prompt: request,
+        prompt: ota && isWifiBoard ? request + OTA_NOTE : request,
         fqbn,
         boardName,
         currentCode: hasUserCode ? cur : undefined,
@@ -663,6 +673,7 @@ export default function App() {
   const needsSub = auth.subscribed === false;
   const freeLimit = auth.freeLimit ?? 5;
   const freeLeft = Math.max(0, freeLimit - (auth.usageMonth ?? 0));
+  const isWifiBoard = /^(esp32|esp8266|rp2040:rp2040:rpipicow|arduino:renesas_uno:unor4wifi)/.test(fqbn);
   const localOn = localAi.enabled;
   const outOfFree = needsSub && freeLeft === 0 && !localOn;
   const isByok = auth.subscribed === true && auth.plan === 'byok';
@@ -1023,6 +1034,23 @@ export default function App() {
               />
               Teaching mode: explain the code and quiz me
             </label>
+            {isWifiBoard && (
+              <label className="teach-toggle" title="Adds ArduinoOTA so later uploads can go over Wi-Fi. The first upload still needs USB. Wireless boards show up in the Port list.">
+                <input
+                  type="checkbox"
+                  checked={ota}
+                  onChange={(e) => {
+                    setOta(e.target.checked);
+                    try {
+                      localStorage.setItem('ota', e.target.checked ? '1' : '0');
+                    } catch {
+                      /* ignore */
+                    }
+                  }}
+                />
+                Wireless (Wi-Fi) uploads after the first one
+              </label>
+            )}
             <div className="chat-buttons">
               <button className="primary" onClick={() => void generate()} disabled={working || outOfFree || needsKey}>
                 {busy ? 'Working…' : preparing ? 'Preparing board…' : 'Generate'}

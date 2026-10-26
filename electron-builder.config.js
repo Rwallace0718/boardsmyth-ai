@@ -39,6 +39,13 @@ module.exports = {
   // No upload happens ("--publish never"); this just gives electron-builder a provider so it can write update info without erroring.
   publish: [{ provider: "generic", url: "https://boardsmythai.com/updates" }],
   nsis: { oneClick: true, perMachine: false, shortcutName: "BoardSmyth AI" },
+  // Linux: AppImage runs on most distributions without installing; build on Linux with "npm run dist:linux".
+  linux: {
+    target: [{ target: "AppImage", arch: ["x64"] }],
+    category: "Development",
+    icon: "resources/icon.png",
+    artifactName: "BoardSmyth-AI-x86_64.${ext}"
+  },
   // Mac: build on a Mac with "npm run dist:mac". It signs automatically when a "Developer ID Application"
   // certificate is in the login Keychain, and notarizes when APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD and
   // APPLE_TEAM_ID are set in the shell. Build once on each kind of Mac (Apple Silicon and Intel), because

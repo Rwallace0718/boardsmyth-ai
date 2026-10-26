@@ -23,7 +23,7 @@ const emitStatus = (stage: StatusEvent['stage'], message: string) =>
 
 // The newest version lives in the Supabase table "app_releases" (written by the release workflow, never cached).
 // Fallbacks: the version.json file next to each installer, then the old copy on the website.
-const platformFolder = () => (process.platform === 'darwin' ? 'mac' : 'win');
+const platformFolder = () => (process.platform === 'darwin' ? 'mac' : process.platform === 'linux' ? 'linux' : 'win');
 interface UpdateSource {
   url: string;
   headers?: Record<string, string>;
