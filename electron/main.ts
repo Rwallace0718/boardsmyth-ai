@@ -123,21 +123,49 @@ async function downloadAndInstall(u: UpdateState): Promise<void> {
   const file = path.join(os.tmpdir(), `BoardSmyth-AI-Update-${u.latest ?? 'new'}${process.platform === 'darwin' ? '.dmg' : '.exe'}`);
   try {
     emitStatus('installing', `Downloading BoardSmyth AI ${u.latest}…`);
-    const res = await fetch(target.toString());
-    if (!res.ok || !res.body) throw new Error(`Server returned ${res.status}`);
-    const total = Number(res.headers.get('content-length')) || 0;
-    let got = 0;
-    const body = Readable.fromWeb(res.body as never);
-    body.on('data', (chunk: Buffer) => {
-      got += chunk.length;
-      if (total) {
-        parent?.setProgressBar(got / total);
-        emitStatus('installing', `Downloading BoardSmyth AI ${u.latest}… ${Math.round((got / total) * 100)}%`);
+    // Try twice: a cut-off or damaged copy is checked below and thrown away before anything is run.
+    let ok = false;
+    let lastErr = '';
+    for (let attempt = 1; attempt <= 2 && !ok; attempt++) {
+      try {
+        try { fs.rmSync(file, { force: true }); } catch { /* ignore */ }
+        // "identity" = no compression, so the byte count we check matches the file on the server.
+        const res = await fetch(`${target.toString()}?t=${Date.now()}`, { headers: { 'Accept-Encoding': 'identity', 'Cache-Control': 'no-cache' } });
+        if (!res.ok || !res.body) throw new Error(`Server returned ${res.status}`);
+        const total = Number(res.headers.get('content-length')) || 0;
+        let got = 0;
+        const body = Readable.fromWeb(res.body as never);
+        body.on('data', (chunk: Buffer) => {
+          got += chunk.length;
+          if (total) {
+            parent?.setProgressBar(got / total);
+            emitStatus('installing', `Downloading BoardSmyth AI ${u.latest}… ${Math.round((got / total) * 100)}%`);
+          }
+        });
+        const out = fs.createWriteStream(file);
+        await pipeline(body, out);
+        // Wait until the file handle is really closed before anything touches the file.
+        if (!out.closed) await new Promise<void>((r) => out.once('close', () => r()));
+        parent?.setProgressBar(-1);
+        const size = fs.statSync(file).size;
+        if (total && (got !== total || size !== total)) throw new Error(`The download was cut short (${size} of ${total} bytes).`);
+        if (size < 1_000_000) throw new Error('The downloaded file is too small to be the installer.');
+        if (process.platform === 'win32') {
+          const head = Buffer.alloc(2);
+          const fd = fs.openSync(file, 'r');
+          fs.readSync(fd, head, 0, 2, 0);
+          fs.closeSync(fd);
+          if (head.toString('latin1') !== 'MZ') throw new Error('The downloaded file is not a Windows installer.');
+        }
+        ok = true;
+      } catch (e) {
+        lastErr = e instanceof Error ? e.message : String(e);
+        parent?.setProgressBar(-1);
       }
-    });
-    await pipeline(body, fs.createWriteStream(file));
-    parent?.setProgressBar(-1);
-    if (total && got !== total) throw new Error('The download was cut short.');
+    }
+    if (!ok) throw new Error(lastErr || 'The download failed.');
+    // Let antivirus finish its scan of the new file before it is run.
+    await new Promise((r) => setTimeout(r, 1500));
     if (process.platform === 'win32') {
       emitStatus('done', 'Update downloaded. Closing to install…');
       spawn(file, [], { detached: true, stdio: 'ignore' }).unref();
