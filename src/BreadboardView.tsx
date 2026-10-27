@@ -86,6 +86,27 @@ function Icon({ kind, x, y, label }: { kind: string; x: number; y: number; label
   }
 }
 
+function resistorLabel(text: string): string {
+  const m = text.match(/(\d+(?:\.\d+)?)\s*(k|m)?\s*(?:ohm|Ω)/i);
+  if (!m) return 'resistor';
+  return `${m[1]}${m[2] ? m[2].toLowerCase() : ''} Ω`;
+}
+
+/** A small resistor drawn on a wire, for parts whose wire path includes one. */
+function InlineResistor({ x, y, label }: { x: number; y: number; label: string }) {
+  return (
+    <g>
+      <rect x={x - 17} y={y - 6} width={34} height={12} rx={6} fill="#d8b98a" stroke="#7a5c2e" />
+      {[-8, -2, 4, 11].map((dx, i) => (
+        <rect key={i} x={x + dx} y={y - 6} width={3} height={12} fill={['#8b4513', '#111', '#ef4444', '#d4af37'][i]} />
+      ))}
+      <text x={x} y={y - 10} textAnchor="middle" fontSize={10} fontWeight={600} fill="#3f3a2a">
+        {label}
+      </text>
+    </g>
+  );
+}
+
 /** Breadboard-style picture of the parts and wires. Illustrative, not hole-exact. */
 export default function BreadboardView({ rows, boardName }: { rows: WiringRow[]; boardName: string }) {
   const parts = groupParts(rows);
@@ -163,6 +184,13 @@ export default function BreadboardView({ rows, boardName }: { rows: WiringRow[];
                     strokeLinecap="round"
                   />
                   <circle cx={tx} cy={ty} r={3.5} fill={c} stroke="#111" strokeWidth={0.5} />
+                  {part.kind !== 'resistor' && !isGnd(r.pin) && !isPower(r.pin) && /resistor/i.test(`${r.to} ${r.part} ${r.note ?? ''}`) && (
+                    <InlineResistor
+                      x={(sx + 3 * (sx + 60) + 3 * (tx - 60) + tx) / 8}
+                      y={(sy + 3 * sy + 3 * (ty + 60) + ty) / 8}
+                      label={resistorLabel(`${r.to} ${r.note ?? ''}`)}
+                    />
+                  )}
                 </g>
               );
             })}
