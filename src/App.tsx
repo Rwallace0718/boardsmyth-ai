@@ -253,6 +253,19 @@ export default function App() {
         setCode(STARTER);
         savedCode.current = STARTER;
         setFilePath('');
+        setChat([]);
+        setHistory([]);
+        setWiring([]);
+        setParts([]);
+        setLesson(undefined);
+        setPrompt('');
+        setImages([]);
+        setLog('');
+        setLogDetail(null);
+        setShowDetail(false);
+        setLastSafety('');
+        setStatus(null);
+        setTab('log');
       } else if (a === 'open') {
         if (!confirmDiscard()) return;
         const r = await window.api.file.open();
