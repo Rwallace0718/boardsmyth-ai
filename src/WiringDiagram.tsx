@@ -287,7 +287,7 @@ export default function WiringDiagram({ rows, boardName }: { rows: WiringRow[]; 
   const pinY = (p: string) => pinsTop + pins.indexOf(p) * PIN_H + PIN_H / 2;
   const boardH = 34 + boardPicH + 40 + pins.length * PIN_H + 14;
 
-  const cardH = (p: Part) => Math.max(150, 50 + p.rows.length * 26 + 14);
+  const cardH = (p: Part) => Math.max(180, 50 + p.rows.length * 26 + 14);
   let y = TOP;
   const cards = parts.map((p) => {
     const h = cardH(p);
@@ -440,16 +440,16 @@ export default function WiringDiagram({ rows, boardName }: { rows: WiringRow[]; 
                 {photos[key] ? (
                   <g>
                     <clipPath id={`clip-${cy}`}>
-                      <rect x={picX} y={cy + 38} width={112} height={Math.min(h - 80, 90)} rx={8} />
+                      <rect x={picX} y={cy + 40} width={112} height={88} rx={8} />
                     </clipPath>
-                    <image href={photos[key]} x={picX} y={cy + 38} width={112} height={Math.min(h - 80, 90)} preserveAspectRatio="xMidYMid slice" clipPath={`url(#clip-${cy})`} />
+                    <image href={photos[key]} x={picX} y={cy + 40} width={112} height={88} preserveAspectRatio="xMidYMid slice" clipPath={`url(#clip-${cy})`} />
                   </g>
                 ) : (
-                  <g transform={`translate(${picX + 56} ${cy + 38 + 44}) scale(0.95)`}>
+                  <g transform={`translate(${picX + 56} ${cy + 40 + 44}) scale(0.85)`}>
                     <PartArt kind={part.kind} label={part.label} />
                   </g>
                 )}
-                {photoBtn(picX, cy + h - 30, key, part.label, 92)}
+                {photoBtn(picX, cy + h - 34, key, part.label, 92)}
                 {part.rows.map((r, j) => {
                   const ty = cy + 50 + j * 26 + 13;
                   const label = partPinLabel(r);
