@@ -1,5 +1,5 @@
 import type { WiringRow } from '../shared/types';
-import BreadboardView from './BreadboardView';
+import WiringDiagram from './WiringDiagram';
 
 /** Table plus a simple diagram of how to wire the parts, built from the AI's wiring list. */
 export default function WiringPanel({
@@ -60,8 +60,8 @@ export default function WiringPanel({
         </tbody>
       </table>
 
-      <BreadboardView rows={rows} boardName={boardName} />
-      <p className="muted small">The picture is an illustration of which pin goes to which part, not exact breadboard holes. Check every wire against the safety notes in the chat before you power the board.</p>
+      <WiringDiagram rows={rows} boardName={boardName} />
+      <p className="muted small">The picture shows which board pin goes to which connection on each part. It is an illustration, not exact breadboard holes. Check every wire against the safety notes in the chat before you power the board.</p>
     </div>
   );
 }

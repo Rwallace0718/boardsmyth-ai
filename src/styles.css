@@ -177,3 +177,19 @@ textarea { resize: none; width: 100%; }
 .lib-search input { flex: 1; }
 .lib-list { list-style: none; padding: 0; margin: 0; }
 .lib-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+
+/* wiring diagram */
+.wd-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 6px; }
+.wd-zoom { display: inline-flex; gap: 4px; }
+.wd-zoom button { min-width: 34px; }
+.wd-scroll { overflow: auto; max-height: 70vh; border-radius: 10px; border: 1px solid rgba(255,255,255,.12); }
+.wd-svg { display: block; height: auto; }
+.wd-btn { cursor: pointer; }
+.wd-btn:hover rect { fill: #e0f2fe; }
+.cam-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; z-index: 50; }
+.cam-modal { background: #1b222c; color: #e5e7eb; border-radius: 12px; padding: 18px; width: min(520px, 92vw); box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+.cam-modal h3 { margin: 0 0 4px; }
+.cam-video { width: 100%; max-height: 320px; background: #000; border-radius: 8px; margin: 8px 0; }
+.cam-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.cam-file { cursor: pointer; }
+.cam-err { color: #fca5a5; }

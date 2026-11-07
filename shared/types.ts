@@ -70,6 +70,10 @@ export interface WiringRow {
   /** The physical part this wire belongs to, e.g. "LED1". */
   group?: string;
   kind?: string;
+  /** The connection point on the part itself, e.g. "VCC", "SDA", "anode", "SIG". */
+  partPin?: string;
+  /** The voltage this part runs on, e.g. "3.3V", "5V", "12V". */
+  volts?: string;
 }
 
 export interface PartItem {
