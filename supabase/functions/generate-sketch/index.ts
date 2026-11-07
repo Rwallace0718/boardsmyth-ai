@@ -208,7 +208,8 @@ Deno.serve(async (req) => {
 
   // 4. Monthly cap (only count the first attempt of a request; auto-fix retries are free)
   if (!compileErrors) {
-    const { data: allowed, error: usageErr } = await admin.rpc('increment_usage_monthly', {
+    // Paying users and class students have a monthly cap; the free plan is a one-time total (see migration 010).
+    const { data: allowed, error: usageErr } = await admin.rpc(paid ? 'increment_usage_monthly' : 'increment_usage_lifetime', {
       p_user: user.id,
       p_limit: limit,
     });
@@ -216,7 +217,7 @@ Deno.serve(async (req) => {
     if (!allowed) {
       return paid
         ? json({ error: `Monthly limit of ${limit} generations reached. It resets on the 1st.` }, 429)
-        : json({ error: `You have used your ${FREE_LIMIT} free generations this month. Subscribe to keep going.`, code_name: 'free_limit' }, 402);
+        : json({ error: `You have used your ${FREE_LIMIT} free generations. Subscribe to keep going.`, code_name: 'free_limit' }, 402);
     }
   }
 

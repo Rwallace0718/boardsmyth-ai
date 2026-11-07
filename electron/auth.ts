@@ -169,6 +169,14 @@ export async function getState(): Promise<AuthState> {
     .eq('day', monthKey)
     .maybeSingle();
 
+  // The free plan is a one-time total, kept under the fixed date 2000-01-01.
+  const { data: freeUsage } = await sb
+    .from('usage')
+    .select('count')
+    .eq('user_id', user.id)
+    .eq('day', '2000-01-01')
+    .maybeSingle();
+
   const termsAccepted = user.user_metadata?.terms_version === TERMS_VERSION;
   if (termsAccepted && user.user_metadata?.terms_logged_version !== TERMS_VERSION && !backfillTried) {
     backfillTried = true;
@@ -183,6 +191,7 @@ export async function getState(): Promise<AuthState> {
     school,
     className,
     usageMonth: usage?.count ?? 0,
+    usageFree: freeUsage?.count ?? 0,
     monthlyLimit: viaClass ? 100 : 300,
     hasOwnKey: hasClaudeKey(),
     freeLimit: 5,

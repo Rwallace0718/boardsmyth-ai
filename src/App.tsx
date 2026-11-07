@@ -699,7 +699,7 @@ export default function App() {
 
   const needsSub = auth.subscribed === false;
   const freeLimit = auth.freeLimit ?? 5;
-  const freeLeft = Math.max(0, freeLimit - (auth.usageMonth ?? 0));
+  const freeLeft = Math.max(0, freeLimit - (auth.usageFree ?? 0));
   const isWifiBoard = /^(esp32|esp8266|rp2040:rp2040:rpipicow|arduino:renesas_uno:unor4wifi)/.test(fqbn);
   const localOn = localAi.enabled;
   const outOfFree = needsSub && freeLeft === 0 && !localOn;
@@ -929,8 +929,8 @@ export default function App() {
       {needsSub && (
         <div className="banner">
           {outOfFree
-            ? `You have used your ${freeLimit} free generations this month. Subscribe to keep generating. You can still edit, check and upload your own code.`
-            : `Free plan: ${freeLeft} of ${freeLimit} free generations left this month. Subscribe for 300 a month with automatic error fixing.`}
+            ? `You have used your ${freeLimit} free generations. Subscribe to keep generating. You can still edit, check and upload your own code.`
+            : `Free trial: ${freeLeft} of ${freeLimit} free generations left. Subscribe for 300 a month with automatic error fixing.`}
           <button className="primary" onClick={() => window.api.auth.openCheckout()}>
             Subscribe
           </button>

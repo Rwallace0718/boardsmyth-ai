@@ -169,6 +169,8 @@ export interface AuthState {
   className?: string;
   /** Generations used this month (hosted plan). */
   usageMonth?: number;
+  /** Free-plan generations used in total (the free plan is a one-time allowance). */
+  usageFree?: number;
   monthlyLimit?: number;
   /** True when a Claude API key is saved on this computer (byok plan). */
   hasOwnKey?: boolean;
