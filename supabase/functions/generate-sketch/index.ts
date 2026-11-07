@@ -195,6 +195,7 @@ Deno.serve(async (req) => {
   const boardFacts = String(body.boardFacts ?? '').slice(0, 2500);
   const currentCode = body.currentCode ? String(body.currentCode).slice(0, MAX_CODE_CHARS) : '';
   const compileErrors = body.compileErrors ? String(body.compileErrors).slice(0, 6000) : '';
+  const deviceId = String(body.deviceId ?? '').slice(0, 128);
   if (!prompt.trim() || !fqbn) return json({ error: 'Describe what you want the board to do.' }, 400);
 
   const images: { media: string; data: string }[] = [];
@@ -206,13 +207,16 @@ Deno.serve(async (req) => {
     }
   }
 
-  // 4. Monthly cap (only count the first attempt of a request; auto-fix retries are free)
+  // 4. Usage cap (only count the first attempt of a request; auto-fix retries are free).
+  // Paying users and class students have a monthly cap. The free plan is a one-time total, counted per account
+  // and per computer (a one-way hash made by the app), so a second email address does not give another allowance.
   if (!compileErrors) {
-    // Paying users and class students have a monthly cap; the free plan is a one-time total (see migration 010).
-    const { data: allowed, error: usageErr } = await admin.rpc(paid ? 'increment_usage_monthly' : 'increment_usage_lifetime', {
-      p_user: user.id,
-      p_limit: limit,
-    });
+    if (!paid && !/^[a-f0-9]{64}$/.test(deviceId)) {
+      return json({ error: 'Please update BoardSmyth AI to the latest version to use your free generations.', code_name: 'update' }, 426);
+    }
+    const { data: allowed, error: usageErr } = paid
+      ? await admin.rpc('increment_usage_monthly', { p_user: user.id, p_limit: limit })
+      : await admin.rpc('increment_free_trial', { p_user: user.id, p_device: deviceId, p_limit: limit });
     if (usageErr) return json({ error: 'Could not check usage. Try again.' }, 500);
     if (!allowed) {
       return paid

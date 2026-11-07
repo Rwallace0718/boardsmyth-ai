@@ -1,6 +1,7 @@
 import type { GenerateRequest, GenerateResult, StatusEvent, WiringRow, Lesson, PartItem } from '../shared/types';
 import { loadConfig } from './config';
 import { accessToken } from './auth';
+import { deviceHash } from './device';
 import { compile, ensureCore, ensureLibraries } from './arduino';
 import { getClaudeKey } from './keys';
 import { getLocalAi } from './localai';
@@ -32,7 +33,7 @@ async function callEdge(body: Record<string, unknown>): Promise<EdgeResponse> {
       Authorization: `Bearer ${token}`,
       apikey: cfg.supabaseAnonKey,
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ ...body, deviceId: deviceHash() }),
     signal: AbortSignal.timeout(180_000), // give up after 3 minutes instead of hanging forever
   });
 
